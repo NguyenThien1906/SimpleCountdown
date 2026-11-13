@@ -1,0 +1,1 @@
+This is the demo version gradually developed upon using for 1 month with the use of Visual Studio and GitHub Copilot. It is the first time developing a certain software and the first time using GitHub Copilot for programming with little to no software development experience beforehand.

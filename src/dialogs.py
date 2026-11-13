@@ -1,0 +1,413 @@
+import tkinter as tk
+from tkinter import ttk
+from typing import Any, Callable, List, Optional, Tuple
+
+from assets import Account, ClockTower, Timer
+
+
+class TimeEditingBehavior:
+    """Shared D/H/M/S input behavior for dialogs that edit a duration."""
+
+    def _init_time_editing(
+        self, parent: ttk.Frame, seconds: int, pady: Tuple[int, int]
+    ) -> None:
+        days, remainder = divmod(seconds, 86400)
+        hours, remainder = divmod(remainder, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        self.time_vars = [
+            tk.StringVar(value=str(value))
+            for value in (days, hours, minutes, seconds)
+        ]
+        self.time_entries: List[ttk.Entry] = []
+
+        for column, (unit, field_var) in enumerate(
+            zip(("D", "H", "M", "S"), self.time_vars)
+        ):
+            unit_frame = ttk.Frame(parent)
+            unit_frame.grid(row=0, column=column, padx=(0 if column == 0 else 8, 0))
+            ttk.Label(unit_frame, text=unit).pack(anchor="w")
+            entry = ttk.Entry(unit_frame, textvariable=field_var, width=6)
+            entry.pack()
+            entry.bind("<Button-1>", self._select_time_field)
+            self.time_entries.append(entry)
+
+        for index, entry in enumerate(self.time_entries):
+            entry.bind(
+                "<Left>",
+                lambda event, field_index=index: self._move_time_field(
+                    event, field_index, -1
+                ),
+            )
+            entry.bind(
+                "<Right>",
+                lambda event, field_index=index: self._move_time_field(
+                    event, field_index, 1
+                ),
+            )
+        parent.grid_configure(pady=pady)
+
+    @staticmethod
+    def _duration_from_fields(fields: Tuple[str, str, str, str]) -> int:
+        labels = ("days", "hours", "minutes", "seconds")
+        values = []
+        for label, field in zip(labels, fields):
+            if not field:
+                values.append(0)
+            elif field.isdecimal():
+                values.append(int(field))
+            else:
+                raise ValueError(f"{label.capitalize()} must be a non-negative integer.")
+
+        days, hours, minutes, seconds = values
+        return days * 86400 + hours * 3600 + minutes * 60 + seconds
+
+    def _select_time_field(self, event: tk.Event) -> None:
+        entry = event.widget
+        self.after_idle(lambda: entry.selection_range(0, tk.END))
+
+    def _move_time_field(
+        self, event: tk.Event, field_index: int, direction: int
+    ) -> Optional[str]:
+        entry = self.time_entries[field_index]
+        if direction < 0:
+            at_boundary = entry.index(tk.INSERT) == 0
+        else:
+            at_boundary = entry.index(tk.INSERT) == len(entry.get())
+        next_index = field_index + direction
+        if at_boundary and 0 <= next_index < len(self.time_entries):
+            next_entry = self.time_entries[next_index]
+            next_entry.focus_set()
+            next_entry.icursor(tk.END if direction < 0 else 0)
+            next_entry.selection_range(0, tk.END)
+            return "break"
+        return None
+
+
+class TimerEditor(TimeEditingBehavior, tk.Toplevel):
+    """Dialog for editing a timer's name and remaining duration."""
+
+    def __init__(
+        self,
+        master: tk.Misc,
+        timer: Timer,
+        on_save: Callable[[str, int], None],
+    ) -> None:
+        super().__init__(master)
+        self.timer = timer
+        self.on_save = on_save
+        self.title("Edit timer")
+        self.transient(master.winfo_toplevel())
+        self.resizable(False, False)
+        self.grab_set()
+
+        content = ttk.Frame(self, padding=18)
+        content.grid(row=0, column=0, sticky="nsew")
+        content.columnconfigure(0, weight=1)
+
+        ttk.Label(content, text="Timer name").grid(row=0, column=0, sticky="w")
+        self.name_var = tk.StringVar(value=timer.name)
+        name_entry = ttk.Entry(content, textvariable=self.name_var, width=34)
+        name_entry.grid(row=1, column=0, sticky="ew", pady=(4, 14))
+
+        ttk.Label(content, text="Remaining time").grid(row=2, column=0, sticky="w")
+        time_fields = ttk.Frame(content)
+        time_fields.grid(row=3, column=0, sticky="w")
+        self._init_time_editing(time_fields, timer.value, (6, 12))
+
+        self.error_label = ttk.Label(content, foreground="#b42318")
+        self.error_label.grid(row=4, column=0, sticky="w")
+        buttons = ttk.Frame(content)
+        buttons.grid(row=5, column=0, sticky="e", pady=(12, 0))
+
+        ttk.Button(buttons, text="Cancel", command=self.destroy).pack(
+            side="right", padx=(8, 0)
+        )
+        ttk.Button(buttons, text="Save", command=self._save).pack(side="right")
+        self.bind("<Return>", lambda _event: self._save())
+        self.bind("<Escape>", lambda _event: self.destroy())
+        self.update_idletasks()
+        x = master.winfo_rootx() + (master.winfo_width() - self.winfo_width()) // 2
+        y = master.winfo_rooty() + (master.winfo_height() - self.winfo_height()) // 2
+        self.geometry(f"+{x}+{y}")
+        self.grab_set()
+        name_entry.focus_set()
+
+    def _save(self) -> None:
+        name = self.name_var.get().strip()
+        if not name:
+            self.error_label.configure(text="Enter a timer name.")
+            return
+        try:
+            remaining = self._duration_from_fields(
+                tuple(field_var.get().strip() for field_var in self.time_vars)
+            )
+        except ValueError as error:
+            self.error_label.configure(text=str(error))
+            return
+
+        self.on_save(name, remaining)
+        self.destroy()
+
+
+class AssignTimerDialog(tk.Toplevel):
+    """Choose a timer for an account upgrade assistant."""
+
+    def __init__(
+        self,
+        master: tk.Misc,
+        timers: List[Timer],
+        on_assign: Callable[[Timer], None],
+        on_cancel: Optional[Callable[[], None]] = None,
+        assignment_scope: str = "Home Village / Building",
+    ) -> None:
+        super().__init__(master)
+        self.timers = timers
+        self.on_assign = on_assign
+        self.on_cancel = on_cancel
+        self.title("Assign Timer")
+        self.transient(master.winfo_toplevel())
+        self.resizable(False, False)
+        self.grab_set()
+
+        content = ttk.Frame(self, padding=18)
+        content.grid(row=0, column=0, sticky="nsew")
+        content.columnconfigure(0, weight=1)
+
+        ttk.Label(content, text=f"Select a {assignment_scope} timer:").grid(
+            row=0, column=0, sticky="w", pady=(0, 8)
+        )
+        self.timer_list = tk.Listbox(content, height=min(max(len(timers), 3), 10), width=36)
+        self.timer_list.grid(row=1, column=0, sticky="ew")
+        for timer in timers:
+            self.timer_list.insert(tk.END, timer.name)
+        self.timer_list.bind("<<ListboxSelect>>", self._on_selection)
+        self.timer_list.bind("<Double-Button-1>", lambda _event: self._assign())
+
+        buttons = ttk.Frame(content)
+        buttons.grid(row=2, column=0, sticky="e", pady=(12, 0))
+        ttk.Button(buttons, text="Cancel", command=self._cancel).pack(
+            side="right", padx=(8, 0)
+        )
+        self.assign_button = ttk.Button(
+            buttons, text="Assign", command=self._assign, state="disabled"
+        )
+        self.assign_button.pack(side="right")
+        self.bind("<Return>", lambda _event: self._assign())
+        self.bind("<Escape>", lambda _event: self._cancel())
+        self.protocol("WM_DELETE_WINDOW", self._cancel)
+
+        self.update_idletasks()
+        x = master.winfo_rootx() + (master.winfo_width() - self.winfo_width()) // 2
+        y = master.winfo_rooty() + (master.winfo_height() - self.winfo_height()) // 2
+        self.geometry(f"+{x}+{y}")
+        if timers:
+            self.timer_list.focus_set()
+
+    def _on_selection(self, _event: tk.Event) -> None:
+        state = "normal" if self.timer_list.curselection() else "disabled"
+        self.assign_button.configure(state=state)
+
+    def _assign(self) -> None:
+        selection = self.timer_list.curselection()
+        if not selection:
+            return
+        self.on_assign(self.timers[selection[0]])
+        self.destroy()
+
+    def _cancel(self) -> None:
+        if self.on_cancel is not None:
+            self.on_cancel()
+        self.destroy()
+
+
+class EditAssistantDialog(TimeEditingBehavior, tk.Toplevel):
+    """Edit an upgrade assistant's state, cooldown, and timer assignment."""
+
+    def __init__(
+        self,
+        master: tk.Misc,
+        account: Account,
+        assistant: Any,
+        assistant_name: str,
+        assignable_timers: List[Timer],
+        on_save: Callable[
+            [int, bool, int, bool, Optional[Timer], Optional[int]], None
+        ],
+    ) -> None:
+        super().__init__(master)
+        self.account = account
+        self.assistant = assistant
+        self.assistant_name = assistant_name
+        self.assignable_timers = assignable_timers
+        self.on_save = on_save
+        self.pending_timer = (
+            None if isinstance(assistant, ClockTower) else assistant.assigned_timer
+        )
+        self.title(f"Edit {assistant_name}")
+        self.transient(master.winfo_toplevel())
+        self.resizable(False, False)
+        self.grab_set()
+
+        content = ttk.Frame(self, padding=18)
+        content.grid(row=0, column=0, sticky="nsew")
+        content.columnconfigure(0, weight=1)
+
+        self.is_clock_tower = isinstance(assistant, ClockTower)
+        row = 0
+        if not self.is_clock_tower:
+            ttk.Label(content, text="Cooldown").grid(
+                row=row, column=0, sticky="w"
+            )
+            time_fields = ttk.Frame(content)
+            time_fields.grid(row=row + 1, column=0, sticky="w")
+            self._init_time_editing(time_fields, assistant.cooldown, (6, 14))
+            row += 2
+
+        ttk.Label(content, text="Status").grid(row=row, column=0, sticky="w")
+        self.active_var = tk.StringVar(
+            value="Active" if assistant.active else "Inactive"
+        )
+        ttk.Combobox(
+            content,
+            textvariable=self.active_var,
+            values=("Active", "Inactive"),
+            state="readonly",
+            width=18,
+        ).grid(row=row + 1, column=0, sticky="w", pady=(4, 12))
+        row += 2
+
+        ttk.Label(content, text="Multiplier").grid(row=row, column=0, sticky="w")
+        if self.is_clock_tower:
+            ttk.Label(content, text="9 (fixed)").grid(
+                row=row + 1, column=0, sticky="w", pady=(4, 12)
+            )
+            row += 2
+            ttk.Label(content, text="Active duration (minutes)").grid(
+                row=row, column=0, sticky="w"
+            )
+            self.active_duration_var = tk.StringVar(
+                value=str(assistant.active_cooldown_minutes)
+            )
+            ttk.Entry(content, textvariable=self.active_duration_var, width=20).grid(
+                row=row + 1, column=0, sticky="w", pady=(4, 12)
+            )
+            row += 2
+        else:
+            self.multiplier_var = tk.StringVar(value=str(assistant.multiplier))
+            ttk.Entry(content, textvariable=self.multiplier_var, width=20).grid(
+                row=row + 1, column=0, sticky="w", pady=(4, 12)
+            )
+            row += 2
+
+        self.has_assignment = not isinstance(assistant, ClockTower)
+        if self.has_assignment:
+            ttk.Label(content, text="Assignment").grid(
+                row=row, column=0, sticky="w"
+            )
+            self.assignment_var = tk.StringVar(
+                value="Assigned" if assistant.assigned else "Unassigned"
+            )
+            self.assignment_combo = ttk.Combobox(
+                content,
+                textvariable=self.assignment_var,
+                values=("Assigned", "Unassigned"),
+                state="readonly",
+                width=18,
+            )
+            self.assignment_combo.grid(
+                row=row + 1, column=0, sticky="w", pady=(4, 0)
+            )
+            self.assignment_combo.bind(
+                "<<ComboboxSelected>>", self._on_assignment_changed
+            )
+            row += 2
+
+        self.error_label = ttk.Label(content, foreground="#b42318")
+        self.error_label.grid(row=row, column=0, sticky="w", pady=(8, 0))
+        buttons = ttk.Frame(content)
+        buttons.grid(row=row + 1, column=0, sticky="e", pady=(12, 0))
+        ttk.Button(buttons, text="Cancel", command=self.destroy).pack(
+            side="right", padx=(8, 0)
+        )
+        ttk.Button(buttons, text="Save", command=self._save).pack(side="right")
+        self.bind("<Return>", lambda _event: self._save())
+        self.bind("<Escape>", lambda _event: self.destroy())
+
+        self.update_idletasks()
+        x = master.winfo_rootx() + (master.winfo_width() - self.winfo_width()) // 2
+        y = master.winfo_rooty() + (master.winfo_height() - self.winfo_height()) // 2
+        self.geometry(f"+{x}+{y}")
+
+    def _on_assignment_changed(self, _event: tk.Event) -> None:
+        if not self.has_assignment:
+            return
+        if self.assignment_var.get() == "Unassigned":
+            self.pending_timer = None
+            self.error_label.configure(text="")
+            return
+
+        if not self.assignable_timers:
+            self.assignment_var.set("Unassigned")
+            self.pending_timer = None
+            self.error_label.configure(text="No eligible timers are available.")
+            return
+
+        def assigned(timer: Timer) -> None:
+            self.pending_timer = timer
+            self.error_label.configure(text="")
+
+        def cancelled() -> None:
+            if self.pending_timer is None:
+                self.assignment_var.set("Unassigned")
+
+        AssignTimerDialog(
+            self,
+            self.assignable_timers,
+            assigned,
+            cancelled,
+            self.assistant_name,
+        )
+
+    def _save(self) -> None:
+        cooldown = self.assistant.cooldown
+        if not self.is_clock_tower:
+            try:
+                cooldown = self._duration_from_fields(
+                    tuple(variable.get().strip() for variable in self.time_vars)
+                )
+            except ValueError as error:
+                self.error_label.configure(text=str(error))
+                return
+
+        active_duration_minutes: Optional[int] = None
+        if self.is_clock_tower:
+            duration_text = self.active_duration_var.get().strip()
+            if not duration_text.isdecimal():
+                self.error_label.configure(
+                    text="Active duration must be a non-negative whole number of minutes."
+                )
+                return
+            active_duration_minutes = int(duration_text)
+            multiplier = 9
+        else:
+            multiplier_text = self.multiplier_var.get().strip()
+            if not multiplier_text.isdecimal():
+                self.error_label.configure(
+                    text="Multiplier must be a non-negative integer."
+                )
+                return
+            multiplier = int(multiplier_text)
+        assigned = self.has_assignment and self.assignment_var.get() == "Assigned"
+        if assigned and self.pending_timer is None:
+            self.error_label.configure(text="Select a timer to assign.")
+            return
+
+        self.on_save(
+            cooldown,
+            self.active_var.get() == "Active",
+            multiplier,
+            assigned,
+            self.pending_timer if assigned else None,
+            active_duration_minutes,
+        )
+        self.destroy()

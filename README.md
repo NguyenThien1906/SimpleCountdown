@@ -23,3 +23,6 @@ Additional features are included, but not limited to:
 
 ## Programming
 This application will be implemented as a Windows desktop application, using Visual Studios with Claude Code implemented. This would also be the first time I will be trying Claude Code in programming.
+
+## Account timer overview
+Run the Tkinter overview with `py -3 src/app.py`. The `src/data.json` file contains accounts, each with a `timers` list. Every timer has a `name` and a non-negative integer `value` measured in seconds. `src/data.py` loads and validates the data into the `Account` and `Timer` classes defined in `src/assets.py`.

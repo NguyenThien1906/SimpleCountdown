@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import messagebox, simpledialog, ttk
 from typing import Any, Callable, List, Optional, Tuple
 
 from assets import Account, ClockTower, Timer
@@ -91,11 +91,12 @@ class TimerEditor(TimeEditingBehavior, tk.Toplevel):
         master: tk.Misc,
         timer: Timer,
         on_save: Callable[[str, int], None],
+        title: str = "Edit timer",
     ) -> None:
         super().__init__(master)
         self.timer = timer
         self.on_save = on_save
-        self.title("Edit timer")
+        self.title(title)
         self.transient(master.winfo_toplevel())
         self.resizable(False, False)
         self.grab_set()
@@ -147,6 +148,297 @@ class TimerEditor(TimeEditingBehavior, tk.Toplevel):
 
         self.on_save(name, remaining)
         self.destroy()
+
+
+class TimerListDialog(tk.Toplevel):
+    """View and edit timers belonging to one village category."""
+
+    def __init__(
+        self,
+        master: tk.Misc,
+        timers: List[Timer],
+        village: str,
+        category: str,
+        on_add: Callable[[Timer], None],
+        on_edit: Callable[[Timer, str, int], None],
+        on_delete: Callable[[Timer], None],
+    ) -> None:
+        super().__init__(master)
+        self.timers = list(timers)
+        self.village = village
+        self.category = category
+        self.on_add = on_add
+        self.on_edit = on_edit
+        self.on_delete = on_delete
+        self.title("Edit Timer List")
+        self.transient(master.winfo_toplevel())
+        self.resizable(False, False)
+        self.grab_set()
+
+        content = ttk.Frame(self, padding=18)
+        content.grid(row=0, column=0, sticky="nsew")
+        content.columnconfigure(0, weight=1)
+        ttk.Label(content, text=f"{village} / {category} timers").grid(
+            row=0, column=0, columnspan=2, sticky="w", pady=(0, 8)
+        )
+
+        self.timer_list = tk.Listbox(
+            content, height=min(max(len(self.timers), 3), 10), width=42,
+            exportselection=False,
+        )
+        self.timer_list.grid(row=1, column=0, sticky="nsew")
+        content.rowconfigure(1, weight=1)
+
+        buttons = ttk.Frame(content)
+        buttons.grid(row=1, column=1, sticky="ns", padx=(12, 0))
+        ttk.Button(buttons, text="Add", command=self._add).pack(
+            fill="x", pady=(0, 8)
+        )
+        self.edit_button = ttk.Button(
+            buttons, text="Edit", command=self._edit, state="disabled"
+        )
+        self.edit_button.pack(fill="x", pady=(0, 8))
+        self.delete_button = ttk.Button(
+            buttons, text="Delete", command=self._delete, state="disabled"
+        )
+        self.delete_button.pack(fill="x", pady=(0, 8))
+        ttk.Button(buttons, text="Close", command=self.destroy).pack(
+            fill="x", side="bottom"
+        )
+        self._refresh_timers()
+        self.timer_list.bind("<<ListboxSelect>>", self._on_selection)
+        self.timer_list.bind("<Double-Button-1>", lambda _event: self._edit())
+        self.bind("<Escape>", lambda _event: self.destroy())
+
+        self.update_idletasks()
+        x = master.winfo_rootx() + (master.winfo_width() - self.winfo_width()) // 2
+        y = master.winfo_rooty() + (master.winfo_height() - self.winfo_height()) // 2
+        self.geometry(f"+{x}+{y}")
+
+    def _refresh_timers(self) -> None:
+        self.timer_list.delete(0, tk.END)
+        for timer in self.timers:
+            self.timer_list.insert(
+                tk.END, f"{timer.name} - {self._format_time(timer.value)}"
+            )
+        self.edit_button.configure(state="disabled")
+
+    @staticmethod
+    def _format_time(seconds: int) -> str:
+        days, remainder = divmod(seconds, 86400)
+        hours, remainder = divmod(remainder, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        time = f"{hours:02}:{minutes:02}:{seconds:02}"
+        return f"{days}d {time}" if days else time
+
+    def _on_selection(self, _event: tk.Event) -> None:
+        state = "normal" if self.timer_list.curselection() else "disabled"
+        self.edit_button.configure(state=state)
+        self.delete_button.configure(state=state)
+
+    def _add(self) -> None:
+        draft = Timer("", 0, self.village, self.category)
+        TimerEditor(
+            self,
+            draft,
+            lambda name, remaining: self._save_new_timer(
+                draft, name, remaining
+            ),
+            title="Add Timer",
+        )
+
+    def _save_new_timer(self, draft: Timer, name: str, remaining: int) -> None:
+        timer = Timer(name, remaining, draft.village, draft.category)
+        self.on_add(timer)
+        self.timers.append(timer)
+        self._refresh_timers()
+
+    def _edit(self) -> None:
+        selection = self.timer_list.curselection()
+        if not selection:
+            return
+        timer = self.timers[selection[0]]
+        TimerEditor(
+            self,
+            timer,
+            lambda name, remaining: self._save_edited_timer(
+                timer, name, remaining
+            ),
+        )
+
+    def _save_edited_timer(
+        self, timer: Timer, name: str, remaining: int
+    ) -> None:
+        self.on_edit(timer, name, remaining)
+        self._refresh_timers()
+
+    def _delete(self) -> None:
+        selection = self.timer_list.curselection()
+        if not selection:
+            return
+        index = selection[0]
+        timer = self.timers[index]
+        if not messagebox.askyesno(
+            "Delete Timer",
+            f"Delete {timer.name!r}?",
+            parent=self,
+        ):
+            return
+        self.on_delete(timer)
+        self.timers.pop(index)
+        self._refresh_timers()
+
+
+class AccountListDialog(tk.Toplevel):
+    """Add and remove accounts from the timer overview."""
+
+    def __init__(
+        self,
+        master: tk.Misc,
+        accounts: List[Account],
+        on_add: Callable[[str], Account],
+        on_delete: Callable[[Account], None],
+        on_move: Callable[[Account, int], None],
+    ) -> None:
+        super().__init__(master)
+        self.accounts = list(accounts)
+        self.on_add = on_add
+        self.on_delete = on_delete
+        self.on_move = on_move
+        self.title("Edit Account List")
+        self.transient(master.winfo_toplevel())
+        self.resizable(False, False)
+        self.grab_set()
+
+        content = ttk.Frame(self, padding=18)
+        content.grid(row=0, column=0, sticky="nsew")
+        content.columnconfigure(0, weight=1)
+        ttk.Label(content, text="Accounts").grid(
+            row=0, column=0, columnspan=2, sticky="w", pady=(0, 8)
+        )
+
+        self.account_list = tk.Listbox(
+            content,
+            height=min(max(len(self.accounts), 3), 10),
+            width=42,
+            exportselection=False,
+        )
+        self.account_list.grid(row=1, column=0, sticky="nsew")
+        content.rowconfigure(1, weight=1)
+
+        buttons = ttk.Frame(content)
+        buttons.grid(row=1, column=1, sticky="ns", padx=(12, 0))
+        ttk.Button(buttons, text="Add", command=self._add).pack(
+            fill="x", pady=(0, 8)
+        )
+        self.delete_button = ttk.Button(
+            buttons, text="Delete", command=self._delete, state="disabled"
+        )
+        self.delete_button.pack(fill="x", pady=(0, 8))
+        self.move_up_button = ttk.Button(
+            buttons, text="Move Up", command=self._move_up, state="disabled"
+        )
+        self.move_up_button.pack(fill="x", pady=(0, 8))
+        self.move_down_button = ttk.Button(
+            buttons, text="Move Down", command=self._move_down, state="disabled"
+        )
+        self.move_down_button.pack(fill="x", pady=(0, 8))
+        ttk.Button(buttons, text="Close", command=self.destroy).pack(
+            fill="x", side="bottom"
+        )
+        self._refresh_accounts()
+        self.account_list.bind("<<ListboxSelect>>", self._on_selection)
+        self.bind("<Escape>", lambda _event: self.destroy())
+
+        self.update_idletasks()
+        x = master.winfo_rootx() + (master.winfo_width() - self.winfo_width()) // 2
+        y = master.winfo_rooty() + (master.winfo_height() - self.winfo_height()) // 2
+        self.geometry(f"+{x}+{y}")
+
+    def _refresh_accounts(self) -> None:
+        self.account_list.delete(0, tk.END)
+        for account in self.accounts:
+            self.account_list.insert(tk.END, account.name)
+        self.delete_button.configure(state="disabled")
+        self.move_up_button.configure(state="disabled")
+        self.move_down_button.configure(state="disabled")
+
+    def _on_selection(self, _event: tk.Event) -> None:
+        selection = self.account_list.curselection()
+        self.delete_button.configure(
+            state="normal" if selection else "disabled"
+        )
+        index = selection[0] if selection else -1
+        self.move_up_button.configure(
+            state="normal" if index > 0 else "disabled"
+        )
+        self.move_down_button.configure(
+            state="normal"
+            if 0 <= index < len(self.accounts) - 1
+            else "disabled"
+        )
+
+    def _add(self) -> None:
+        name = simpledialog.askstring(
+            "Add Account", "Account name:", parent=self
+        )
+        if name is None:
+            return
+        name = name.strip()
+        if not name:
+            messagebox.showerror(
+                "Add Account", "Enter an account name.", parent=self
+            )
+            return
+        if any(account.name.casefold() == name.casefold() for account in self.accounts):
+            messagebox.showerror(
+                "Add Account",
+                "An account with that name already exists.",
+                parent=self,
+            )
+            return
+        account = self.on_add(name)
+        self.accounts.append(account)
+        self._refresh_accounts()
+
+    def _move_up(self) -> None:
+        self._move_selected(-1)
+
+    def _move_down(self) -> None:
+        self._move_selected(1)
+
+    def _move_selected(self, direction: int) -> None:
+        selection = self.account_list.curselection()
+        if not selection:
+            return
+        index = selection[0]
+        destination = index + direction
+        if not 0 <= destination < len(self.accounts):
+            return
+        account = self.accounts[index]
+        self.on_move(account, destination)
+        self.accounts.pop(index)
+        self.accounts.insert(destination, account)
+        self._refresh_accounts()
+        self.account_list.selection_set(destination)
+        self.account_list.activate(destination)
+        self._on_selection(None)
+
+    def _delete(self) -> None:
+        selection = self.account_list.curselection()
+        if not selection:
+            return
+        index = selection[0]
+        account = self.accounts[index]
+        if not messagebox.askyesno(
+            "Delete Account",
+            f"Delete account {account.name!r} and its timers?",
+            parent=self,
+        ):
+            return
+        self.on_delete(account)
+        self.accounts.pop(index)
+        self._refresh_accounts()
 
 
 class AssignTimerDialog(tk.Toplevel):

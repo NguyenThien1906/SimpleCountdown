@@ -17,6 +17,10 @@
         "builder_potion": {
           "active": false,
           "cooldown": 0
+        },
+        "builder_bite": {
+          "active": false,
+          "cooldown": 0
         }
       },
       "Lab": {
@@ -24,6 +28,10 @@
           { "name": "Dragon Research", "value": 43200 }
         ],
         "lab_potion": {
+          "active": false,
+          "cooldown": 0
+        },
+        "study_soup": {
           "active": false,
           "cooldown": 0
         },
@@ -77,6 +85,10 @@
         "builder_potion": {
           "active": false,
           "cooldown": 0
+        },
+        "builder_bite": {
+          "active": false,
+          "cooldown": 0
         }
       },
       "Lab": {
@@ -85,6 +97,10 @@
           { "name": "Healing Potion Research", "value": 21600 }
         ],
         "lab_potion": {
+          "active": false,
+          "cooldown": 0
+        },
+        "study_soup": {
           "active": false,
           "cooldown": 0
         },

@@ -243,6 +243,7 @@ class TimerApp(ttk.Frame):
     ) -> None:
         super().__init__(master, **kwargs)
         self.accounts = load_accounts() if accounts is None else accounts
+        self._account_rows: dict[int, str] = {}
         self._timer_items: List[Tuple[str, Timer]] = []
         self._summary_items: List[Tuple[str, str, List[Timer]]] = []
         self._end_times: dict[str, datetime] = {}
@@ -250,6 +251,7 @@ class TimerApp(ttk.Frame):
         self._building_category_accounts: dict[str, Account] = {}
         self._lab_category_accounts: dict[str, Account] = {}
         self._pet_category_accounts: dict[str, Account] = {}
+        self._timer_list_categories: dict[str, Tuple[Account, str, str]] = {}
         self._potion_rows: dict[int, str] = {}
         self._updates = TimerUpdateController(self)
         self._mouse_controls = TimerMouseControls(self)
@@ -281,46 +283,135 @@ class TimerApp(ttk.Frame):
 
     def _populate(self) -> None:
         for account in self.accounts:
-            for helper in (
-                account.builder_apprentice,
-                account.lab_assistant,
-                account.clock_tower,
-                account.builder_potion,
-                account.lab_potion,
-                account.pet_potion,
-            ):
-                self._updates.sync_helper_timers(account, helper)
-            account_id = self.tree.insert(
-                "", "end", text=account.name, open=True, tags=("account",)
-            )
-            self._summary_items.append((account_id, account.name, account.timers))
-            HomeVillageControl().populate(self, account, account_id)
-            BuilderBaseControl().populate(self, account, account_id)
-            for (
-                category_id,
-                category_account,
-            ) in self._building_category_accounts.items():
-                if category_account is account and account.builder_potion.active:
-                    self._mouse_controls.potions.show_potion_row(
-                        account.builder_potion, category_id, "Builder Potion"
-                    )
-            for (
-                category_id,
-                category_account,
-            ) in self._lab_category_accounts.items():
-                if category_account is account and account.lab_potion.active:
-                    self._mouse_controls.potions.show_potion_row(
-                        account.lab_potion, category_id, "Lab Potion"
-                    )
-            for (
-                category_id,
-                category_account,
-            ) in self._pet_category_accounts.items():
-                if category_account is account and account.pet_potion.active:
-                    self._mouse_controls.potions.show_potion_row(
-                        account.pet_potion, category_id, "Pet Potion"
-                    )
+            self._populate_account(account)
         self._updates.refresh_collapsed_summaries()
+
+    def _populate_account(self, account: Account) -> None:
+        for helper in (
+            account.builder_apprentice,
+            account.lab_assistant,
+            account.clock_tower,
+            account.builder_potion,
+            account.builder_bite,
+            account.lab_potion,
+            account.study_soup,
+            account.pet_potion,
+        ):
+            self._updates.sync_helper_timers(account, helper)
+        account_id = self.tree.insert(
+            "", "end", text=account.name, open=True, tags=("account",)
+        )
+        self._account_rows[id(account)] = account_id
+        self._summary_items.append((account_id, account.name, account.timers))
+        HomeVillageControl().populate(self, account, account_id)
+        BuilderBaseControl().populate(self, account, account_id)
+        for (
+            category_id,
+            category_account,
+        ) in self._building_category_accounts.items():
+            if category_account is account:
+                for boost, boost_name in (
+                    (account.builder_potion, "Builder Potion"),
+                    (account.builder_bite, "Builder Bite"),
+                ):
+                    if boost.active:
+                        self._mouse_controls.potions.show_potion_row(
+                            boost, category_id, boost_name
+                        )
+        for (
+            category_id,
+            category_account,
+        ) in self._lab_category_accounts.items():
+            if category_account is account:
+                for boost, boost_name in (
+                    (account.lab_potion, "Lab Potion"),
+                    (account.study_soup, "Study Soup"),
+                ):
+                    if boost.active:
+                        self._mouse_controls.potions.show_potion_row(
+                            boost, category_id, boost_name
+                        )
+        for (
+            category_id,
+            category_account,
+        ) in self._pet_category_accounts.items():
+            if category_account is account and account.pet_potion.active:
+                self._mouse_controls.potions.show_potion_row(
+                    account.pet_potion, category_id, "Pet Potion"
+                )
+        self._updates.refresh_collapsed_summaries()
+
+    def add_account(self, name: str) -> Account:
+        account = Account(name=name)
+        self.accounts.append(account)
+        self._populate_account(account)
+        self._updates.update_summary()
+        return account
+
+    def move_account(self, account: Account, destination: int) -> None:
+        current = self.accounts.index(account)
+        if not 0 <= destination < len(self.accounts):
+            raise IndexError("Account destination is outside the account list.")
+        if current == destination:
+            return
+        self.accounts.pop(current)
+        self.accounts.insert(destination, account)
+        self.tree.move(self._account_rows[id(account)], "", destination)
+
+    def remove_account(self, account: Account) -> None:
+        account_id = self._account_rows.pop(id(account))
+        account_timer_ids = {id(timer) for timer in account.timers}
+        descendant_ids: set[str] = set()
+        pending = list(self.tree.get_children(account_id))
+        while pending:
+            item_id = pending.pop()
+            descendant_ids.add(item_id)
+            pending.extend(self.tree.get_children(item_id))
+        descendant_ids.add(account_id)
+
+        self.tree.delete(account_id)
+        timer_ids = {
+            item_id
+            for item_id, timer in self._timer_items
+            if id(timer) in account_timer_ids
+        }
+        self._timer_items = [
+            (item_id, timer)
+            for item_id, timer in self._timer_items
+            if id(timer) not in account_timer_ids
+        ]
+        for timer_id in timer_ids:
+            self._end_times.pop(timer_id, None)
+        self._assistant_items = [
+            item
+            for item in self._assistant_items
+            if item[2] is not account
+        ]
+        self._summary_items = [
+            item for item in self._summary_items if item[0] not in descendant_ids
+        ]
+        for category_accounts in (
+            self._building_category_accounts,
+            self._lab_category_accounts,
+            self._pet_category_accounts,
+        ):
+            for category_id, category_account in list(category_accounts.items()):
+                if category_account is account:
+                    del category_accounts[category_id]
+        for category_id, category in list(self._timer_list_categories.items()):
+            if category[0] is account:
+                del self._timer_list_categories[category_id]
+        for potion in (
+            account.builder_potion,
+            account.builder_bite,
+            account.lab_potion,
+            account.study_soup,
+            account.pet_potion,
+        ):
+            self._potion_rows.pop(id(potion), None)
+        self.accounts.remove(account)
+        self._updates.refresh_collapsed_summaries()
+        self._updates.update_summary()
 
 def main() -> None:
     root = tk.Tk()

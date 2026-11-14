@@ -1,16 +1,19 @@
 import json
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import List, Optional, Type, Union
 
 from assets import (
     Account,
     BuilderApprentice,
+    BuilderBite,
     BuilderPotion,
     ClockTower,
     LabPotion,
     LabAssistant,
     PetPotion,
+    StudySoup,
     SUBCATEGORIES,
+    TimedBoost,
     Timer,
     VILLAGES,
 )
@@ -105,6 +108,32 @@ def _load_pet_potion(record: object, account_name: str) -> PetPotion:
     return PetPotion(active=active, cooldown=cooldown)
 
 
+def _load_timed_boost(
+    record: object,
+    helper_name: str,
+    helper_type: Type[TimedBoost],
+    account_name: str,
+) -> TimedBoost:
+    if not isinstance(record, dict):
+        raise ValueError(
+            f"{helper_name} data for account {account_name!r} must be an object."
+        )
+
+    active = record.get("active", False)
+    cooldown = record.get("cooldown", 0)
+    if not isinstance(active, bool):
+        raise ValueError(
+            f"{helper_name} active value for account {account_name!r} "
+            "must be a boolean."
+        )
+    if isinstance(cooldown, bool) or not isinstance(cooldown, int) or cooldown < 0:
+        raise ValueError(
+            f"{helper_name} cooldown for account {account_name!r} "
+            "must be a non-negative integer."
+        )
+    return helper_type(active=active, cooldown=cooldown)
+
+
 def load_accounts(file_path: Optional[Union[str, Path]] = None) -> List[Account]:
     path = Path(file_path) if file_path is not None else Path(__file__).with_name("data.json")
 
@@ -128,7 +157,9 @@ def load_accounts(file_path: Optional[Union[str, Path]] = None) -> List[Account]
         lab_assistant = LabAssistant()
         clock_tower = ClockTower()
         builder_potion = BuilderPotion()
+        builder_bite = BuilderBite()
         lab_potion = LabPotion()
+        study_soup = StudySoup()
         pet_potion = PetPotion()
         for village in VILLAGES:
             village_record = record.get(village)
@@ -188,6 +219,12 @@ def load_accounts(file_path: Optional[Union[str, Path]] = None) -> List[Account]
                         category_record.get("builder_potion", {}),
                         name,
                     )
+                    builder_bite = _load_timed_boost(
+                        category_record.get("builder_bite", {}),
+                        "Builder Bite",
+                        BuilderBite,
+                        name,
+                    )
                 elif village == "Home Village" and category == "Lab":
                     helper_name = "Lab Assistant"
                     helper_type = LabAssistant
@@ -199,6 +236,12 @@ def load_accounts(file_path: Optional[Union[str, Path]] = None) -> List[Account]
                     helper_record = category_record.get("lab_assistant", {})
                     lab_potion = _load_lab_potion(
                         category_record.get("lab_potion", {}),
+                        name,
+                    )
+                    study_soup = _load_timed_boost(
+                        category_record.get("study_soup", {}),
+                        "Study Soup",
+                        StudySoup,
                         name,
                     )
                 elif village == "Home Village" and category == "Pet":
@@ -273,7 +316,9 @@ def load_accounts(file_path: Optional[Union[str, Path]] = None) -> List[Account]
                 lab_assistant=lab_assistant,
                 clock_tower=clock_tower,
                 builder_potion=builder_potion,
+                builder_bite=builder_bite,
                 lab_potion=lab_potion,
+                study_soup=study_soup,
                 pet_potion=pet_potion,
             )
         )

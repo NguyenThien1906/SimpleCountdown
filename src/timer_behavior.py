@@ -22,6 +22,11 @@ class TimerCategoryControl:
             for timer in account.timers
             if timer.village == self.village and timer.category == self.category
         ]
+        overview._timer_list_categories[category_id] = (
+            account,
+            self.village,
+            self.category,
+        )
         overview._summary_items.append((category_id, self.category, timers))
         self._add_helper(overview, account, category_id, timers)
         for timer in timers:

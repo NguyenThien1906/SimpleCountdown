@@ -50,7 +50,19 @@ class Timer:
                 and self.village == "Home Village"
                 and self.category == "Building"
             )
+        elif isinstance(helper, BuilderBite):
+            active = (
+                active
+                and self.village == "Home Village"
+                and self.category == "Building"
+            )
         elif isinstance(helper, LabPotion):
+            active = (
+                active
+                and self.village == "Home Village"
+                and self.category == "Lab"
+            )
+        elif isinstance(helper, StudySoup):
             active = (
                 active
                 and self.village == "Home Village"
@@ -102,19 +114,36 @@ class Timer:
             self.actual_time_left = self._seconds_with_assistant(assistant)
             return
 
-        helper = next(iter(self.ongoing_helpers), None)
-        if helper is not None and helper.cooldown > 0:
-            rate = self.rate
-            boosted_progress = rate * helper.cooldown
-            if self.value > boosted_progress:
-                self.actual_time_left = (
-                    helper.cooldown + self.value - boosted_progress
-                )
-                return
-            self.actual_time_left = (self.value + rate - 1) // rate
+        timed_boosts = [
+            helper
+            for helper in self.ongoing_helpers
+            if isinstance(helper, TimedBoost) and helper.cooldown > 0
+        ]
+        if timed_boosts:
+            self.actual_time_left = self._seconds_with_timed_boosts(timed_boosts)
             return
 
         self.actual_time_left = self.value
+
+    def _seconds_with_timed_boosts(self, helpers: list[TimedBoost]) -> int:
+        remaining = self.value
+        elapsed = 0
+        active_helpers = [(helper, helper.cooldown) for helper in helpers]
+        while active_helpers and remaining > 0:
+            rate = 1 + sum(helper.multiplier for helper, _ in active_helpers)
+            seconds_to_expiry = min(cooldown for _, cooldown in active_helpers)
+            ticks_to_finish = (remaining + rate - 1) // rate
+            if ticks_to_finish <= seconds_to_expiry:
+                return elapsed + ticks_to_finish
+
+            remaining -= seconds_to_expiry * rate
+            elapsed += seconds_to_expiry
+            active_helpers = [
+                (helper, cooldown - seconds_to_expiry)
+                for helper, cooldown in active_helpers
+                if cooldown > seconds_to_expiry
+            ]
+        return elapsed + remaining
 
     def _seconds_with_assistant(self, assistant: Assistant) -> int:
         active = assistant.active
@@ -125,27 +154,32 @@ class Timer:
         active_seconds = assistant.active_cooldown
         inactive_seconds = assistant.inactive_cooldown
         cycle_seconds = active_seconds + inactive_seconds
-        potion = next(
-            (
-                helper
-                for helper in self.ongoing_helpers
-                if isinstance(helper, (BuilderPotion, LabPotion, PetPotion))
-            ),
-            None,
-        )
-        potion_seconds = potion.cooldown if potion is not None else 0
+        timed_boosts = [
+            (helper, helper.cooldown)
+            for helper in self.ongoing_helpers
+            if isinstance(helper, TimedBoost) and helper.cooldown > 0
+        ]
 
-        while potion_seconds > 0 and remaining > 0:
-            rate = (active_rate if active else 1) + potion.multiplier
-            seconds_to_phase_end = phase_seconds if phase_seconds > 0 else potion_seconds
-            phase_length = min(potion_seconds, seconds_to_phase_end)
+        while timed_boosts and remaining > 0:
+            rate = (active_rate if active else 1) + sum(
+                helper.multiplier for helper, _ in timed_boosts
+            )
+            boost_seconds = min(cooldown for _, cooldown in timed_boosts)
+            seconds_to_phase_end = (
+                phase_seconds if phase_seconds > 0 else boost_seconds
+            )
+            phase_length = min(boost_seconds, seconds_to_phase_end)
             ticks_to_finish = (remaining + rate - 1) // rate
             if ticks_to_finish <= phase_length:
                 return elapsed + ticks_to_finish
 
             remaining -= phase_length * rate
             elapsed += phase_length
-            potion_seconds -= phase_length
+            timed_boosts = [
+                (helper, cooldown - phase_length)
+                for helper, cooldown in timed_boosts
+                if cooldown > phase_length
+            ]
             if phase_seconds > 0:
                 phase_seconds -= phase_length
                 if phase_seconds == 0:
@@ -202,6 +236,11 @@ class Helper(ABC):
 
 
 @dataclass
+class TimedBoost(Helper):
+    """A temporary helper that boosts its eligible timer group."""
+
+
+@dataclass
 class Assistant(Helper):
     assigned: bool = False
     assigned_timer: Optional[Timer] = None
@@ -222,7 +261,7 @@ class LabAssistant(Assistant):
 
 
 @dataclass
-class ClockTower(Helper):
+class ClockTower(TimedBoost):
     active_cooldown_minutes: int = 30
 
     multiplier: int = field(default=9, init=False)
@@ -241,7 +280,7 @@ class ClockTower(Helper):
 
 
 @dataclass
-class BuilderPotion(Helper):
+class BuilderPotion(TimedBoost):
     multiplier: int = field(default=9, init=False)
 
     @property
@@ -250,7 +289,7 @@ class BuilderPotion(Helper):
 
 
 @dataclass
-class LabPotion(Helper):
+class LabPotion(TimedBoost):
     multiplier: int = field(default=23, init=False)
 
     @property
@@ -259,8 +298,26 @@ class LabPotion(Helper):
 
 
 @dataclass
-class PetPotion(Helper):
+class PetPotion(TimedBoost):
     multiplier: int = field(default=23, init=False)
+
+    @property
+    def supports_multiple_timers(self) -> bool:
+        return True
+
+
+@dataclass
+class BuilderBite(TimedBoost):
+    multiplier: int = field(default=1, init=False)
+
+    @property
+    def supports_multiple_timers(self) -> bool:
+        return True
+
+
+@dataclass
+class StudySoup(TimedBoost):
+    multiplier: int = field(default=3, init=False)
 
     @property
     def supports_multiple_timers(self) -> bool:
@@ -275,5 +332,7 @@ class Account:
     lab_assistant: LabAssistant = field(default_factory=LabAssistant)
     clock_tower: ClockTower = field(default_factory=ClockTower)
     builder_potion: BuilderPotion = field(default_factory=BuilderPotion)
+    builder_bite: BuilderBite = field(default_factory=BuilderBite)
     lab_potion: LabPotion = field(default_factory=LabPotion)
+    study_soup: StudySoup = field(default_factory=StudySoup)
     pet_potion: PetPotion = field(default_factory=PetPotion)

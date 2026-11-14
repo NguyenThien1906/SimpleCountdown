@@ -1,3 +1,4 @@
+import json
 import tkinter as tk
 from tkinter import messagebox, simpledialog, ttk
 from typing import Any, Callable, List, Optional, Tuple
@@ -147,6 +148,107 @@ class TimerEditor(TimeEditingBehavior, tk.Toplevel):
             return
 
         self.on_save(name, remaining)
+        self.destroy()
+
+
+class JSONInputDialog(tk.Toplevel):
+    """Paste a village JSON export and apply it to an account."""
+
+    def __init__(
+        self,
+        master: tk.Misc,
+        account_name: str,
+        on_save: Callable[[str], None],
+    ) -> None:
+        super().__init__(master)
+        self.on_save = on_save
+        self.title(f"JSON Input - {account_name}")
+        self.transient(master.winfo_toplevel())
+        self.geometry("760x520")
+        self.minsize(480, 320)
+        self.grab_set()
+
+        content = ttk.Frame(self, padding=18)
+        content.grid(row=0, column=0, sticky="nsew")
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(0, weight=1)
+        content.columnconfigure(0, weight=1)
+        content.rowconfigure(1, weight=1)
+
+        ttk.Label(content, text="Paste village export JSON").grid(
+            row=0, column=0, sticky="w", pady=(0, 8)
+        )
+        text_frame = ttk.Frame(content)
+        text_frame.grid(row=1, column=0, sticky="nsew")
+        text_frame.columnconfigure(0, weight=1)
+        text_frame.rowconfigure(0, weight=1)
+        self.text = tk.Text(text_frame, wrap="none", undo=True)
+        self.text.grid(row=0, column=0, sticky="nsew")
+        scrollbar = ttk.Scrollbar(
+            text_frame, orient="vertical", command=self.text.yview
+        )
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        self.text.configure(yscrollcommand=scrollbar.set)
+
+        self.error_label = ttk.Label(content, foreground="#b42318")
+        self.error_label.configure(wraplength=700)
+        self.error_label.grid(row=2, column=0, sticky="w", pady=(8, 0))
+        buttons = ttk.Frame(content)
+        buttons.grid(row=3, column=0, sticky="e", pady=(12, 0))
+        ttk.Button(buttons, text="Save", command=self._save).pack(
+            side="right", padx=4
+        )
+        ttk.Button(buttons, text="Cancel", command=self.destroy).pack(
+            side="right", padx=4
+        )
+        ttk.Button(buttons, text="Format", command=self._format_json).pack(
+            side="right", padx=4
+        )
+        self.text.bind("<Return>", self._save_from_enter)
+        self.bind("<Escape>", lambda _event: self.destroy())
+        self.text.focus_set()
+
+        self.update_idletasks()
+        x = master.winfo_rootx() + (master.winfo_width() - self.winfo_width()) // 2
+        y = master.winfo_rooty() + (master.winfo_height() - self.winfo_height()) // 2
+        self.geometry(f"+{x}+{y}")
+
+    def _format_json(self) -> None:
+        raw_text = self.text.get("1.0", "end-1c")
+        try:
+            data = json.loads(raw_text, parse_constant=self._reject_json_constant)
+        except json.JSONDecodeError as error:
+            self.error_label.configure(
+                text=(
+                    f"Invalid JSON at line {error.lineno}, column "
+                    f"{error.colno}: {error.msg}. Text was not changed."
+                )
+            )
+            return
+        except ValueError as error:
+            self.error_label.configure(
+                text=f"Invalid JSON: {error}. Text was not changed."
+            )
+            return
+
+        self.text.delete("1.0", "end")
+        self.text.insert("1.0", json.dumps(data, indent=2, ensure_ascii=False))
+        self.error_label.configure(text="")
+
+    @staticmethod
+    def _reject_json_constant(value: str) -> None:
+        raise ValueError(f"{value} is not a valid JSON value")
+
+    def _save_from_enter(self, _event: tk.Event) -> str:
+        self._save()
+        return "break"
+
+    def _save(self) -> None:
+        try:
+            self.on_save(self.text.get("1.0", "end-1c"))
+        except (OSError, RuntimeError, ValueError) as error:
+            self.error_label.configure(text=str(error))
+            return
         self.destroy()
 
 

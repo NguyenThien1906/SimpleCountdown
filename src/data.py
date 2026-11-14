@@ -293,6 +293,11 @@ def load_accounts(file_path: Optional[Union[str, Path]] = None) -> List[Account]
 
     with path.open("r", encoding="utf-8") as data_file:
         records = json.load(data_file)
+    return load_accounts_from_records(records)
+
+
+def load_accounts_from_records(records: object) -> List[Account]:
+    """Validate and load account records without writing them to a file."""
     now = time.time()
 
     if not isinstance(records, list):

@@ -1,36 +1,19 @@
 [
   {
     "name": "Main account",
-    "saved_at": 1794647527.2856526,
+    "saved_at": 1794669208.9750054,
     "Home Village": {
       "Building": {
-        "timers": [
-          {
-            "name": "Builder's Hut",
-            "value": 168115
-          },
-          {
-            "name": "Builder's Hut",
-            "value": 168152
-          },
-          {
-            "name": "Pet House",
-            "value": 81550
-          }
-        ],
+        "timers": [],
         "builder_apprentice": {
           "active": false,
-          "assigned": true,
-          "cooldown": 36851,
-          "multiplier": 3,
-          "assigned_timer": {
-            "index": 2,
-            "name": "Pet House"
-          }
+          "assigned": false,
+          "cooldown": 15438,
+          "multiplier": 3
         },
         "builder_potion": {
-          "active": true,
-          "cooldown": 3518
+          "active": false,
+          "cooldown": 0
         },
         "builder_bite": {
           "active": false,
@@ -41,13 +24,13 @@
         "timers": [
           {
             "name": "Revive Spell Research",
-            "value": 5120
+            "value": 685792
           }
         ],
         "lab_assistant": {
           "active": false,
           "assigned": true,
-          "cooldown": 36851,
+          "cooldown": 15438,
           "multiplier": 1,
           "assigned_timer": {
             "index": 0,
@@ -64,7 +47,12 @@
         }
       },
       "Pet": {
-        "timers": [],
+        "timers": [
+          {
+            "name": "Angry Jelly",
+            "value": 340184
+          }
+        ],
         "pet_potion": {
           "active": false,
           "cooldown": 0
@@ -81,11 +69,11 @@
         "timers": [
           {
             "name": "Cannon",
-            "value": 273021
+            "value": 251539
           },
           {
             "name": "Battle Copter",
-            "value": 336286
+            "value": 314804
           }
         ]
       },

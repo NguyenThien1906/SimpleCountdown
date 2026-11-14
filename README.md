@@ -18,11 +18,11 @@ The application would have these primary features:
 * A global view of timers.
 * Notifications.
 * Additional in-game boosts.
+* Importing village export JSON into an existing account.
 
 Additional features are included, but not limited to:
 
 * Low-power mode.
-* Ability to input using village data in the JSON format.
 * Resources management.
 * Upgrade plan.
 * Star Bonus.
@@ -42,11 +42,11 @@ Primary features:
 * ~~A global view of timers.~~
 * ~~Notifications.~~
 * ~~Additional in-game boosts.~~
+* ~~Importing village export JSON into an existing account.~~
 
 Additional features are included, but not limited to:
 
 * Low-power mode.
-* Ability to input using village data in the JSON format.
 * Resources management.
 * Upgrade plan.
 * Star Bonus.

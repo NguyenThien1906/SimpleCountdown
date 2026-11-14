@@ -321,7 +321,10 @@ def _load_raw_village_data(file_path: Union[str, Path]) -> Dict[str, Any]:
     path = Path(file_path)
     if not path.is_absolute():
         path = Path(__file__).parent / path
-    raw_text = path.read_text(encoding="utf-8")
+    return _parse_raw_village_data(path.read_text(encoding="utf-8"))
+
+
+def _parse_raw_village_data(raw_text: str) -> Dict[str, Any]:
     # Normalize the malformed Town Hall ID in memory; keep the source untouched.
     corrected_text = re.sub(
         r'("data"\s*:\s*)(?:00000001|10000001)\b',
@@ -450,11 +453,21 @@ def extract_timers(
     file_path: Union[str, Path] = "raw_village_data.json",
 ) -> List[Dict[str, Any]]:
     """Convert village timers into duration-based data.json records."""
-    village_data = _load_raw_village_data(file_path)
+    return extract_timers_from_data(_load_raw_village_data(file_path))
+
+
+def extract_timers_from_json(raw_text: str) -> List[Dict[str, Any]]:
+    """Translate a pasted village export into data.json-compatible records."""
+    return extract_timers_from_data(_parse_raw_village_data(raw_text))
+
+
+def extract_timers_from_data(
+    village_data: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    """Convert parsed village data into duration-based account records."""
     tag = village_data.get("tag")
     if not isinstance(tag, str) or not tag.strip():
         raise ValueError("The village export must contain a non-empty account tag.")
-    player_name = get_player_name(tag)
 
     exported_at = village_data.get("timestamp")
     if isinstance(exported_at, bool) or not isinstance(exported_at, int) or exported_at < 0:
@@ -472,10 +485,13 @@ def extract_timers(
             village_data, _TIMER_GROUPS[("Home Village", "Lab")]
         ),
     }
+    builder_buildings = village_data.get("buildings2", [])
+    if not isinstance(builder_buildings, list):
+        raise ValueError("Village export field 'buildings2' must contain a list.")
     clock_tower_level = next(
         (
             record.get("lvl")
-            for record in village_data.get("buildings2", [])
+            for record in builder_buildings
             if isinstance(record, dict) and record.get("data") == _CLOCK_TOWER_ID
         ),
         1,
@@ -486,6 +502,7 @@ def extract_timers(
         or clock_tower_level < 1
     ):
         raise ValueError("Clock Tower level must be a positive integer.")
+    player_name = get_player_name(tag)
     return [
         {
             "name": player_name,

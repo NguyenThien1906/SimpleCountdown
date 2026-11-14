@@ -25,6 +25,7 @@ from dialogs import (
     AssignTimerDialog,
     AccountListDialog,
     EditAssistantDialog,
+    JSONInputDialog,
     TimerEditor,
     TimerListDialog,
 )
@@ -379,6 +380,10 @@ class TimerMouseControls:
         self._blank_context_menu.add_command(
             label="Edit Account List", command=self.edit_account_list
         )
+        self._account_context_menu = tk.Menu(overview, tearoff=False)
+        self._account_context_menu.add_command(
+            label="JSON Input", command=self.open_json_input
+        )
         self._category_context_menu = tk.Menu(overview, tearoff=False)
         self._category_context_menu.add_command(
             label="Builder Potion", command=self.potions.activate_builder_potion
@@ -420,6 +425,19 @@ class TimerMouseControls:
         if not item_id:
             self._blank_context_menu.tk_popup(event.x_root, event.y_root)
             return
+        account = next(
+            (
+                account
+                for account in overview.accounts
+                if overview._account_rows.get(id(account)) == item_id
+            ),
+            None,
+        )
+        if account is not None:
+            overview.tree.selection_set(item_id)
+            self._account_context_account = account
+            self._account_context_menu.tk_popup(event.x_root, event.y_root)
+            return
         if item_id in overview._building_category_accounts:
             overview.tree.selection_set(item_id)
             self._category_context_menu.tk_popup(event.x_root, event.y_root)
@@ -460,6 +478,16 @@ class TimerMouseControls:
         else:
             return
         self._context_menu.tk_popup(event.x_root, event.y_root)
+
+    def open_json_input(self) -> None:
+        account = getattr(self, "_account_context_account", None)
+        if account is None:
+            return
+        JSONInputDialog(
+            self.overview,
+            account.name,
+            lambda raw_text: self.overview.import_account_json(account, raw_text),
+        )
 
     def edit_account_list(self) -> None:
         overview = self.overview

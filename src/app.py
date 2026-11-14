@@ -7,7 +7,8 @@ from typing import Any, List, Optional, Tuple
 
 from app_behavior import TimerMouseControls, TimerUpdateController
 from assets import Account, ClockTower, Helper, Timer
-from data import load_accounts, save_accounts
+from data import load_accounts, load_accounts_from_records, save_accounts
+from data_translation import extract_timers_from_json
 from global_features import GlobalFeatures
 from timer_behavior import BuilderBaseControl, HomeVillageControl
 
@@ -499,6 +500,24 @@ class TimerApp(ttk.Frame):
         self._populate_account(account)
         self._updates.update_summary()
         return account
+
+    def import_account_json(self, account: Account, raw_text: str) -> None:
+        record = extract_timers_from_json(raw_text)[0]
+        record["name"] = account.name
+        replacement = load_accounts_from_records([record])[0]
+
+        account_index = self.accounts.index(account)
+        updated_accounts = list(self.accounts)
+        updated_accounts[account_index] = replacement
+        save_accounts(updated_accounts)
+
+        self.remove_account(account)
+        self.accounts.insert(account_index, replacement)
+        self._populate_account(replacement)
+        self.tree.move(
+            self._account_rows[id(replacement)], "", account_index
+        )
+        self._updates.update_summary()
 
     def move_account(self, account: Account, destination: int) -> None:
         current = self.accounts.index(account)

@@ -2,9 +2,12 @@ import json
 import math
 import os
 from pathlib import Path
+import sys
 import tempfile
 import time
 from typing import List, Optional, Type, Union
+
+DATA_FILE = "data.json"
 
 from assets import (
     Account,
@@ -23,6 +26,13 @@ from assets import (
     Timer,
     VILLAGES,
 )
+
+
+def _default_data_path() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent / DATA_FILE
+    return Path(__file__).resolve().parent / DATA_FILE
+
 
 
 def _load_assistant(record: object, name: str, account_name: str):
@@ -289,7 +299,7 @@ def _simulate_elapsed(account: Account, elapsed_seconds: int) -> None:
 
 
 def load_accounts(file_path: Optional[Union[str, Path]] = None) -> List[Account]:
-    path = Path(file_path) if file_path is not None else Path(__file__).with_name("data.json")
+    path = Path(file_path) if file_path is not None else _default_data_path()
 
     with path.open("r", encoding="utf-8") as data_file:
         records = json.load(data_file)
@@ -665,7 +675,7 @@ def save_accounts(
     file_path: Optional[Union[str, Path]] = None,
 ) -> None:
     """Persist countdown durations and a Unix timestamp for offline catch-up."""
-    path = Path(file_path) if file_path is not None else Path(__file__).with_name("data.json")
+    path = Path(file_path) if file_path is not None else _default_data_path()
     now = time.time()
     records = []
     for account in accounts:

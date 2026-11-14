@@ -333,6 +333,7 @@ class TimerApp(ttk.Frame):
     ) -> None:
         super().__init__(master, **kwargs)
         self.accounts = load_accounts() if accounts is None else accounts
+        self.low_power_mode = False
         self._save_error_shown = False
         self._save_after_id: Optional[str] = None
         self._account_rows: dict[int, str] = {}
@@ -381,6 +382,10 @@ class TimerApp(ttk.Frame):
         self._updates.update_summary()
         self.after(1000, self._updates.tick)
         self._schedule_periodic_save()
+
+    def set_low_power_mode(self, enabled: bool) -> None:
+        self.low_power_mode = enabled
+        self._updates.refresh_display()
 
     def persist_accounts(self) -> None:
         try:

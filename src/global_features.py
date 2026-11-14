@@ -5,6 +5,7 @@ from tkinter import ttk
 from typing import Any, List, Optional
 
 from assets import Account
+from settings import SettingsDialog
 
 
 class GlobalFeatures(ttk.Frame):
@@ -104,6 +105,20 @@ class GlobalFeatures(ttk.Frame):
             relx=1.0, rely=0.0, x=2, y=-2, anchor="ne"
         )
         self._completion_dot.place_forget()
+        self._settings_button = ttk.Button(
+            self,
+            text="⚙",
+            width=3,
+            command=self._open_settings,
+        )
+        self._settings_button.pack(side="right")
+
+    def _open_settings(self) -> None:
+        SettingsDialog(
+            self.winfo_toplevel(),
+            low_power_mode=self.app.low_power_mode,
+            on_low_power_mode_changed=self.app.set_low_power_mode,
+        )
 
     def reset_filters(self) -> None:
         self.collapse_level.set("None")

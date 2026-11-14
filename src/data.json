@@ -1,19 +1,48 @@
 [
   {
     "name": "Main account",
-    "saved_at": 1794669208.9750054,
+    "saved_at": 1794675701.0887146,
     "Home Village": {
       "Building": {
-        "timers": [],
+        "timers": [
+          {
+            "name": "Builder's Hut",
+            "value": 138965
+          },
+          {
+            "name": "Builder's Hut",
+            "value": 139002
+          },
+          {
+            "name": "Scattershot",
+            "value": 633878
+          },
+          {
+            "name": "Scattershot",
+            "value": 634143
+          },
+          {
+            "name": "Pet House",
+            "value": 52400
+          },
+          {
+            "name": "324",
+            "value": 1580
+          }
+        ],
         "builder_apprentice": {
           "active": false,
-          "assigned": false,
-          "cooldown": 15438,
-          "multiplier": 3
+          "assigned": true,
+          "cooldown": 8756,
+          "multiplier": 3,
+          "assigned_timer": {
+            "index": 4,
+            "name": "Pet House"
+          }
         },
         "builder_potion": {
-          "active": false,
-          "cooldown": 0
+          "active": true,
+          "cooldown": 3409
         },
         "builder_bite": {
           "active": false,
@@ -24,13 +53,13 @@
         "timers": [
           {
             "name": "Revive Spell Research",
-            "value": 685792
+            "value": 679105
           }
         ],
         "lab_assistant": {
           "active": false,
           "assigned": true,
-          "cooldown": 15438,
+          "cooldown": 8756,
           "multiplier": 1,
           "assigned_timer": {
             "index": 0,
@@ -50,7 +79,7 @@
         "timers": [
           {
             "name": "Angry Jelly",
-            "value": 340184
+            "value": 333497
           }
         ],
         "pet_potion": {
@@ -69,11 +98,11 @@
         "timers": [
           {
             "name": "Cannon",
-            "value": 251539
+            "value": 244852
           },
           {
             "name": "Battle Copter",
-            "value": 314804
+            "value": 308117
           }
         ]
       },

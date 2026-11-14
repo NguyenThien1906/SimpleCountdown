@@ -34,22 +34,35 @@ from dialogs import (
 class TimerUpdateController:
     """Advance timer and helper state and keep overview rows synchronized."""
 
+    LOW_POWER_TIMER_THRESHOLD_SECONDS = 5 * 60
+    LOW_POWER_REFRESH_INTERVAL = 10
+
     def __init__(self, overview) -> None:
         self.overview = overview
         self._summary_base_tags: dict[str, Tuple[str, ...]] = {}
         self._unnoticed_timer_ids: set[str] = set()
         self._completion_flash_phase = False
+        self._tick_count = 0
 
     def tick(self) -> None:
         overview = self.overview
+        self._tick_count += 1
+        timer_ids_to_refresh = set()
         timer_completed = False
-        for timer_id, timer in overview._timer_items:
+        for timer_index, (timer_id, timer) in enumerate(overview._timer_items):
             previous_time_left = timer.actual_time_left
             timer.advance()
             if previous_time_left > 0 and timer.actual_time_left == 0:
                 timer_completed = True
                 self._unnoticed_timer_ids.add(timer_id)
                 overview.global_features.notify_timer_completed(timer)
+            if (
+                not overview.low_power_mode
+                or timer.actual_time_left <= self.LOW_POWER_TIMER_THRESHOLD_SECONDS
+                or timer_index % self.LOW_POWER_REFRESH_INTERVAL
+                == self._tick_count % self.LOW_POWER_REFRESH_INTERVAL
+            ):
+                timer_ids_to_refresh.add(timer_id)
         if timer_completed:
             self._completion_flash_phase = True
             self._flash_taskbar_until_foreground()
@@ -135,7 +148,7 @@ class TimerUpdateController:
                     overview.timer_view.remove_potion_row(potion)
                 else:
                     overview.timer_view.refresh_potion_row(potion, potion_name)
-        self.refresh_display()
+        self.refresh_display(timer_ids_to_refresh)
         overview.after(1000, self.tick)
 
     def _flash_taskbar_until_foreground(self) -> None:
@@ -200,21 +213,23 @@ class TimerUpdateController:
         )
         flash_window(ctypes.byref(info))
 
-    def refresh_display(self) -> None:
-        self.refresh_timer_end_times()
-        self.refresh_collapsed_summaries()
+    def refresh_display(self, timer_ids: Optional[set[str]] = None) -> None:
+        self.refresh_timer_end_times(timer_ids)
+        self.refresh_collapsed_summaries(timer_ids)
         self.update_summary()
 
-    def refresh_timer_end_times(self) -> None:
+    def refresh_timer_end_times(
+        self, timer_ids: Optional[set[str]] = None
+    ) -> None:
         overview = self.overview
-        timer_ids = {timer_item[0] for timer_item in overview._timer_items}
+        all_timer_ids = {timer_item[0] for timer_item in overview._timer_items}
         ended_ids = {
             timer_id
             for timer_id, timer in overview._timer_items
             if timer.actual_time_left == 0
         }
         had_unnoticed_timers = bool(self._unnoticed_timer_ids)
-        self._unnoticed_timer_ids.intersection_update(timer_ids & ended_ids)
+        self._unnoticed_timer_ids.intersection_update(all_timer_ids & ended_ids)
         if had_unnoticed_timers and not self._unnoticed_timer_ids:
             self._stop_taskbar_flash()
         summary_ids = {summary_item[0] for summary_item in overview._summary_items}
@@ -225,6 +240,8 @@ class TimerUpdateController:
         }
         now = datetime.now()
         for timer_id, timer in overview._timer_items:
+            if timer_ids is not None and timer_id not in timer_ids:
+                continue
             seconds_until_done = timer.actual_time_left
             end_time = now + timedelta(seconds=seconds_until_done)
             overview._end_times[timer_id] = end_time
@@ -312,8 +329,13 @@ class TimerUpdateController:
             self._stop_taskbar_flash()
         self.refresh_display()
 
-    def refresh_collapsed_summaries(self) -> None:
+    def refresh_collapsed_summaries(
+        self, timer_ids: Optional[set[str]] = None
+    ) -> None:
         overview = self.overview
+        timer_row_ids = {
+            id(timer): timer_id for timer_id, timer in overview._timer_items
+        }
         for item_id, label, timers in overview._summary_items:
             is_open = overview.tree.item(item_id, "open")
             visible_timers = overview.global_features.visible_timers(timers)
@@ -321,6 +343,11 @@ class TimerUpdateController:
                 shortest = min(
                     visible_timers, key=lambda timer: timer.actual_time_left
                 )
+                if (
+                    timer_ids is not None
+                    and timer_row_ids.get(id(shortest)) not in timer_ids
+                ):
+                    continue
                 visible_timer_ids = {id(timer) for timer in visible_timers}
                 unnoticed_ids = {
                     timer_id
@@ -344,7 +371,7 @@ class TimerUpdateController:
                     values=overview.timer_view.timer_values(shortest),
                     tags=summary_tags,
                 )
-            else:
+            elif timer_ids is None:
                 base_tags = self._summary_base_tags.pop(
                     item_id, overview.tree.item(item_id, "tags")
                 )

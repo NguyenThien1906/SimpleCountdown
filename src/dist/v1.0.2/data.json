@@ -1,0 +1,111 @@
+[
+  {
+    "name": "Main account",
+    "saved_at": 1794675439.3280635,
+    "Home Village": {
+      "Building": {
+        "timers": [
+          {
+            "name": "Builder's Hut",
+            "value": 140941
+          },
+          {
+            "name": "Builder's Hut",
+            "value": 140978
+          },
+          {
+            "name": "Scattershot",
+            "value": 635854
+          },
+          {
+            "name": "Scattershot",
+            "value": 636119
+          },
+          {
+            "name": "Pet House",
+            "value": 54376
+          }
+        ],
+        "builder_apprentice": {
+          "active": false,
+          "assigned": true,
+          "cooldown": 9013,
+          "multiplier": 3,
+          "assigned_timer": {
+            "index": 4,
+            "name": "Pet House"
+          }
+        },
+        "builder_potion": {
+          "active": false,
+          "cooldown": 0
+        },
+        "builder_bite": {
+          "active": false,
+          "cooldown": 0
+        }
+      },
+      "Lab": {
+        "timers": [
+          {
+            "name": "Revive Spell Research",
+            "value": 679362
+          }
+        ],
+        "lab_assistant": {
+          "active": false,
+          "assigned": true,
+          "cooldown": 9013,
+          "multiplier": 1,
+          "assigned_timer": {
+            "index": 0,
+            "name": "Revive Spell Research"
+          }
+        },
+        "lab_potion": {
+          "active": false,
+          "cooldown": 0
+        },
+        "study_soup": {
+          "active": false,
+          "cooldown": 0
+        }
+      },
+      "Pet": {
+        "timers": [
+          {
+            "name": "Angry Jelly",
+            "value": 333754
+          }
+        ],
+        "pet_potion": {
+          "active": false,
+          "cooldown": 0
+        }
+      }
+    },
+    "Builder Base": {
+      "clock_tower": {
+        "active": false,
+        "cooldown": 0,
+        "active_cooldown_minutes": 32
+      },
+      "Building": {
+        "timers": [
+          {
+            "name": "Cannon",
+            "value": 245109
+          },
+          {
+            "name": "Battle Copter",
+            "value": 308374
+          }
+        ]
+      },
+      "Lab": {
+        "timers": []
+      }
+    },
+    "tag": "#Y20QV9PLC"
+  }
+]

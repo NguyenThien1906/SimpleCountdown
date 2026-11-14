@@ -30,10 +30,7 @@ class Timer:
 
     @property
     def rate(self) -> int:
-        return max(
-            (helper.multiplier + 1 for helper in self.ongoing_helpers),
-            default=1,
-        )
+        return sum(helper.multiplier for helper in self.ongoing_helpers) + 1
 
     def advance(self) -> None:
         if self.value > 0:
@@ -52,6 +49,18 @@ class Timer:
                 active
                 and self.village == "Home Village"
                 and self.category == "Building"
+            )
+        elif isinstance(helper, LabPotion):
+            active = (
+                active
+                and self.village == "Home Village"
+                and self.category == "Lab"
+            )
+        elif isinstance(helper, PetPotion):
+            active = (
+                active
+                and self.village == "Home Village"
+                and self.category == "Pet"
             )
         elif isinstance(helper, ClockTower):
             active = active and self.village == "Builder Base"
@@ -120,17 +129,14 @@ class Timer:
             (
                 helper
                 for helper in self.ongoing_helpers
-                if isinstance(helper, BuilderPotion)
+                if isinstance(helper, (BuilderPotion, LabPotion, PetPotion))
             ),
             None,
         )
         potion_seconds = potion.cooldown if potion is not None else 0
 
         while potion_seconds > 0 and remaining > 0:
-            rate = max(
-                active_rate if active else 1,
-                potion.multiplier + 1,
-            )
+            rate = (active_rate if active else 1) + potion.multiplier
             seconds_to_phase_end = phase_seconds if phase_seconds > 0 else potion_seconds
             phase_length = min(potion_seconds, seconds_to_phase_end)
             ticks_to_finish = (remaining + rate - 1) // rate
@@ -244,6 +250,24 @@ class BuilderPotion(Helper):
 
 
 @dataclass
+class LabPotion(Helper):
+    multiplier: int = field(default=23, init=False)
+
+    @property
+    def supports_multiple_timers(self) -> bool:
+        return True
+
+
+@dataclass
+class PetPotion(Helper):
+    multiplier: int = field(default=23, init=False)
+
+    @property
+    def supports_multiple_timers(self) -> bool:
+        return True
+
+
+@dataclass
 class Account:
     name: str
     timers: list[Timer] = field(default_factory=list)
@@ -251,3 +275,5 @@ class Account:
     lab_assistant: LabAssistant = field(default_factory=LabAssistant)
     clock_tower: ClockTower = field(default_factory=ClockTower)
     builder_potion: BuilderPotion = field(default_factory=BuilderPotion)
+    lab_potion: LabPotion = field(default_factory=LabPotion)
+    pet_potion: PetPotion = field(default_factory=PetPotion)

@@ -7,7 +7,9 @@ from assets import (
     BuilderApprentice,
     BuilderPotion,
     ClockTower,
+    LabPotion,
     LabAssistant,
+    PetPotion,
     SUBCATEGORIES,
     Timer,
     VILLAGES,
@@ -61,6 +63,48 @@ def _load_builder_potion(record: object, account_name: str) -> BuilderPotion:
     return BuilderPotion(active=active, cooldown=cooldown)
 
 
+def _load_lab_potion(record: object, account_name: str) -> LabPotion:
+    if not isinstance(record, dict):
+        raise ValueError(
+            f"Lab Potion data for account {account_name!r} must be an object."
+        )
+
+    active = record.get("active", False)
+    cooldown = record.get("cooldown", 0)
+    if not isinstance(active, bool):
+        raise ValueError(
+            f"Lab Potion active value for account {account_name!r} "
+            "must be a boolean."
+        )
+    if isinstance(cooldown, bool) or not isinstance(cooldown, int) or cooldown < 0:
+        raise ValueError(
+            f"Lab Potion cooldown for account {account_name!r} "
+            "must be a non-negative integer."
+        )
+    return LabPotion(active=active, cooldown=cooldown)
+
+
+def _load_pet_potion(record: object, account_name: str) -> PetPotion:
+    if not isinstance(record, dict):
+        raise ValueError(
+            f"Pet Potion data for account {account_name!r} must be an object."
+        )
+
+    active = record.get("active", False)
+    cooldown = record.get("cooldown", 0)
+    if not isinstance(active, bool):
+        raise ValueError(
+            f"Pet Potion active value for account {account_name!r} "
+            "must be a boolean."
+        )
+    if isinstance(cooldown, bool) or not isinstance(cooldown, int) or cooldown < 0:
+        raise ValueError(
+            f"Pet Potion cooldown for account {account_name!r} "
+            "must be a non-negative integer."
+        )
+    return PetPotion(active=active, cooldown=cooldown)
+
+
 def load_accounts(file_path: Optional[Union[str, Path]] = None) -> List[Account]:
     path = Path(file_path) if file_path is not None else Path(__file__).with_name("data.json")
 
@@ -84,6 +128,8 @@ def load_accounts(file_path: Optional[Union[str, Path]] = None) -> List[Account]
         lab_assistant = LabAssistant()
         clock_tower = ClockTower()
         builder_potion = BuilderPotion()
+        lab_potion = LabPotion()
+        pet_potion = PetPotion()
         for village in VILLAGES:
             village_record = record.get(village)
             if not isinstance(village_record, dict):
@@ -151,6 +197,19 @@ def load_accounts(file_path: Optional[Union[str, Path]] = None) -> List[Account]
                         )
                     timer_records = category_record.get("timers")
                     helper_record = category_record.get("lab_assistant", {})
+                    lab_potion = _load_lab_potion(
+                        category_record.get("lab_potion", {}),
+                        name,
+                    )
+                elif village == "Home Village" and category == "Pet":
+                    if isinstance(category_record, dict):
+                        timer_records = category_record.get("timers")
+                        pet_potion = _load_pet_potion(
+                            category_record.get("pet_potion", {}),
+                            name,
+                        )
+                    else:
+                        timer_records = category_record
                 elif village == "Builder Base" and isinstance(category_record, dict):
                     timer_records = category_record.get("timers")
                 else:
@@ -214,6 +273,8 @@ def load_accounts(file_path: Optional[Union[str, Path]] = None) -> List[Account]
                 lab_assistant=lab_assistant,
                 clock_tower=clock_tower,
                 builder_potion=builder_potion,
+                lab_potion=lab_potion,
+                pet_potion=pet_potion,
             )
         )
 

@@ -23,6 +23,10 @@
         "timers": [
           { "name": "Dragon Research", "value": 43200 }
         ],
+        "lab_potion": {
+          "active": false,
+          "cooldown": 0
+        },
         "lab_assistant": {
           "active": false,
           "assigned": false,
@@ -30,10 +34,16 @@
           "multiplier": 1
         }
       },
-      "Pet": [
-        { "name": "Lassi", "value": 28800 },
-        { "name": "Mighty Yak", "value": 43200 }
-      ]
+      "Pet": {
+        "timers": [
+          { "name": "Lassi", "value": 28800 },
+          { "name": "Mighty Yak", "value": 43200 }
+        ],
+        "pet_potion": {
+          "active": false,
+          "cooldown": 0
+        }
+      }
     },
     "Builder Base": {
       "clock_tower": {
@@ -74,6 +84,10 @@
           { "name": "Lightning Spell Research", "value": 36000 },
           { "name": "Healing Potion Research", "value": 21600 }
         ],
+        "lab_potion": {
+          "active": false,
+          "cooldown": 0
+        },
         "lab_assistant": {
           "active": false,
           "assigned": false,
@@ -81,11 +95,17 @@
           "multiplier": 1
         }
       },
-      "Pet": [
-        { "name": "Electro Owl", "value": 32400 },
-        { "name": "Unicorn", "value": 54000 },
-        { "name": "Frosty", "value": 64800 }
-      ]
+      "Pet": {
+        "timers": [
+          { "name": "Electro Owl", "value": 32400 },
+          { "name": "Unicorn", "value": 54000 },
+          { "name": "Frosty", "value": 64800 }
+        ],
+        "pet_potion": {
+          "active": false,
+          "cooldown": 0
+        }
+      }
     },
     "Builder Base": {
       "clock_tower": {

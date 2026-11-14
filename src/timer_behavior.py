@@ -70,6 +70,7 @@ class HomeVillageLab(TimerCategoryControl):
         category_id: str,
         timers: list[Timer],
     ) -> None:
+        overview._lab_category_accounts[category_id] = account
         overview.timer_view.add_assistant_row(
             category_id,
             account,
@@ -82,6 +83,15 @@ class HomeVillageLab(TimerCategoryControl):
 class HomeVillagePet(TimerCategoryControl):
     village = "Home Village"
     category = "Pet"
+
+    def _add_helper(
+        self,
+        overview: Any,
+        account: Account,
+        category_id: str,
+        timers: list[Timer],
+    ) -> None:
+        overview._pet_category_accounts[category_id] = account
 
 
 class BuilderBaseBuilding(TimerCategoryControl):

@@ -14,7 +14,7 @@ The application would have these primary features:
 
 * Timers (CRUD).
 * Accounts (CRUD).
-* ~~Sorting and filtering timers by account, village and upgrade types.~~ Sorting timers by account.
+* Sorting and filtering timers by account, village and upgrade types.
 * A global view of timers.
 * Notifications.
 * Additional in-game boosts.
@@ -38,7 +38,7 @@ Primary features:
 
 * ~~Timers (CRUD).~~
 * ~~Accounts (CRUD).~~
-* Sorting timers by account.
+* Sorting and filtering timers by account, village and upgrade types.
 * ~~A global view of timers.~~
 * Notifications.
 * ~~Additional in-game boosts.~~

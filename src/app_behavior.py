@@ -117,10 +117,13 @@ class TimerUpdateController:
                     overview.timer_view.remove_potion_row(potion)
                 else:
                     overview.timer_view.refresh_potion_row(potion, potion_name)
+        self.refresh_display()
+        overview.after(1000, self.tick)
+
+    def refresh_display(self) -> None:
         self.refresh_timer_end_times()
         self.refresh_collapsed_summaries()
         self.update_summary()
-        overview.after(1000, self.tick)
 
     def refresh_timer_end_times(self) -> None:
         overview = self.overview
@@ -199,8 +202,9 @@ class TimerUpdateController:
         for item_id, label, timers in overview._summary_items:
             is_open = overview.tree.item(item_id, "open")
             overview.tree.item(item_id, text=label)
-            if not is_open and timers:
-                shortest = min(timers, key=lambda timer: timer.value)
+            visible_timers = overview.global_features.visible_timers(timers)
+            if not is_open and visible_timers:
+                shortest = min(visible_timers, key=lambda timer: timer.value)
                 overview.tree.item(
                     item_id,
                     values=overview.timer_view.timer_values(shortest),

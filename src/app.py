@@ -8,6 +8,7 @@ from typing import Any, List, Optional, Tuple
 from app_behavior import TimerMouseControls, TimerUpdateController
 from assets import Account, ClockTower, Helper, Timer
 from data import load_accounts
+from global_features import GlobalFeatures
 from timer_behavior import BuilderBaseControl, HomeVillageControl
 
 
@@ -252,23 +253,26 @@ class TimerApp(ttk.Frame):
         self._lab_category_accounts: dict[str, Account] = {}
         self._pet_category_accounts: dict[str, Account] = {}
         self._timer_list_categories: dict[str, Tuple[Account, str, str]] = {}
+        self._village_rows: dict[Tuple[int, str], str] = {}
         self._potion_rows: dict[int, str] = {}
         self._updates = TimerUpdateController(self)
         self._mouse_controls = TimerMouseControls(self)
 
         # app configuration
         self.configure(style="App.TFrame", padding=(24, 20)) # overall frame design
-        # allow contents of the frame (content table) to stretch
         self.columnconfigure(0, weight=1)
-        self.rowconfigure(0, weight=1) # row 0 is the header, row 1 is the content table
+        self.rowconfigure(1, weight=1)
 
         # content layout
+        self.global_features = GlobalFeatures(self, self)
+        self.global_features.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+
         self.timer_view = TimerTreeView(self, self)
-        self.timer_view.grid(row=0, column=0, sticky="nsew")
+        self.timer_view.grid(row=1, column=0, sticky="nsew")
         self.tree = self.timer_view.tree
 
         footer = ttk.Frame(self, style="App.TFrame")
-        footer.grid(row=1, column=0, sticky="ew", pady=(12, 0))
+        footer.grid(row=2, column=0, sticky="ew", pady=(12, 0))
         self._summary_label = ttk.Label(footer, style="Summary.TLabel")
         self._summary_label.pack(side="left")
 
@@ -303,8 +307,10 @@ class TimerApp(ttk.Frame):
         )
         self._account_rows[id(account)] = account_id
         self._summary_items.append((account_id, account.name, account.timers))
-        HomeVillageControl().populate(self, account, account_id)
-        BuilderBaseControl().populate(self, account, account_id)
+        home_village_id = HomeVillageControl().populate(self, account, account_id)
+        self._village_rows[(id(account), "Home Village")] = home_village_id
+        builder_base_id = BuilderBaseControl().populate(self, account, account_id)
+        self._village_rows[(id(account), "Builder Base")] = builder_base_id
         for (
             category_id,
             category_account,
@@ -339,6 +345,7 @@ class TimerApp(ttk.Frame):
                 self._mouse_controls.potions.show_potion_row(
                     account.pet_potion, category_id, "Pet Potion"
                 )
+        self.global_features.apply_village_filter()
         self._updates.refresh_collapsed_summaries()
 
     def add_account(self, name: str) -> Account:
@@ -367,6 +374,21 @@ class TimerApp(ttk.Frame):
             item_id = pending.pop()
             descendant_ids.add(item_id)
             pending.extend(self.tree.get_children(item_id))
+        account_village_rows = [
+            (village_name, village_id)
+            for (account_id_key, village_name), village_id
+            in self._village_rows.items()
+            if account_id_key == id(account)
+        ]
+        for village_name, village_id in account_village_rows:
+            if village_id not in self.tree.get_children(account_id):
+                pending = [village_id]
+                while pending:
+                    item_id = pending.pop()
+                    descendant_ids.add(item_id)
+                    pending.extend(self.tree.get_children(item_id))
+                self.tree.delete(village_id)
+            self._village_rows.pop((id(account), village_name), None)
         descendant_ids.add(account_id)
 
         self.tree.delete(account_id)

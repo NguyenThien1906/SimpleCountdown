@@ -14,7 +14,7 @@ from assets import (
     LabAssistant,
     Timer,
 )
-from controls import BuilderBaseControl, HomeVillageControl
+from behaviors import BuilderBaseControl, HomeVillageControl
 from data import load_accounts
 from dialogs import AssignTimerDialog, EditAssistantDialog, TimerEditor
 
@@ -629,7 +629,7 @@ class TimerTreeView(ttk.Frame):
 
 
 class TimerApp(ttk.Frame):
-    """Display every timer grouped under its account."""
+    """App displays timers and stuff from each account."""
 
     def __init__(
         self,
@@ -647,36 +647,28 @@ class TimerApp(ttk.Frame):
         self._updates = TimerUpdateController(self)
         self._mouse_controls = TimerMouseControls(self)
 
-        self.configure(style="App.TFrame", padding=(24, 20))
+        # app configuration
+        self.configure(style="App.TFrame", padding=(24, 20)) # overall frame design
+        # allow contents of the frame (content table) to stretch
         self.columnconfigure(0, weight=1)
-        self.rowconfigure(1, weight=1)
+        self.rowconfigure(0, weight=1) # row 0 is the header, row 1 is the content table
 
-        header = ttk.Frame(self, style="App.TFrame")
-        header.grid(row=0, column=0, sticky="ew", pady=(0, 16))
-        header.columnconfigure(0, weight=1)
-        ttk.Label(header, text="Account timers", style="Title.TLabel").grid(
-            row=0, column=0, sticky="w"
-        )
-        ttk.Label(
-            header,
-            text="A live overview of every upgrade.",
-            style="Subtitle.TLabel",
-        ).grid(row=1, column=0, sticky="w", pady=(4, 0))
-
+        # content layout
         self.timer_view = TimerTreeView(self, self)
-        self.timer_view.grid(row=1, column=0, sticky="nsew")
+        self.timer_view.grid(row=0, column=0, sticky="nsew")
         self.tree = self.timer_view.tree
 
         footer = ttk.Frame(self, style="App.TFrame")
-        footer.grid(row=2, column=0, sticky="ew", pady=(12, 0))
+        footer.grid(row=1, column=0, sticky="ew", pady=(12, 0))
         self._summary_label = ttk.Label(footer, style="Summary.TLabel")
         self._summary_label.pack(side="left")
 
+        # content view
         self._populate()
         self.tree.bind("<<TreeviewOpen>>", self._updates.on_tree_toggle)
         self.tree.bind("<<TreeviewClose>>", self._updates.on_tree_toggle)
-        self.tree.bind("<Button-3>", self._mouse_controls.show_context_menu)
-        self.tree.bind("<Button-1>", self._mouse_controls.on_left_click, add="+")
+        self.tree.bind("<Button-3>", self._mouse_controls.show_context_menu) # right click
+        self.tree.bind("<Button-1>", self._mouse_controls.on_left_click, add="+") # left click
         self._updates.update_summary()
         self.after(1000, self._updates.tick)
 
@@ -696,10 +688,6 @@ class TimerApp(ttk.Frame):
             HomeVillageControl().populate(self, account, account_id)
             BuilderBaseControl().populate(self, account, account_id)
         self._updates.refresh_collapsed_summaries()
-
-
-TimerOverview = TimerApp
-
 
 def main() -> None:
     root = tk.Tk()

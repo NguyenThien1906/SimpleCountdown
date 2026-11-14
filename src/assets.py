@@ -336,3 +336,4 @@ class Account:
     lab_potion: LabPotion = field(default_factory=LabPotion)
     study_soup: StudySoup = field(default_factory=StudySoup)
     pet_potion: PetPotion = field(default_factory=PetPotion)
+    tag: Optional[str] = None

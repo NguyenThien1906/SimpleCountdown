@@ -1,22 +1,36 @@
 [
   {
-    "name": "Main Account",
+    "name": "Main account",
+    "saved_at": 1794647527.2856526,
     "Home Village": {
       "Building": {
         "timers": [
-          { "name": "Town Hall", "value": 86400 },
-          { "name": "Gold Mine", "value": 21600 },
-          { "name": "Wall", "value": 7200 }
+          {
+            "name": "Builder's Hut",
+            "value": 168115
+          },
+          {
+            "name": "Builder's Hut",
+            "value": 168152
+          },
+          {
+            "name": "Pet House",
+            "value": 81550
+          }
         ],
         "builder_apprentice": {
           "active": false,
-          "assigned": false,
-          "cooldown": 0,
-          "multiplier": 1
+          "assigned": true,
+          "cooldown": 36851,
+          "multiplier": 3,
+          "assigned_timer": {
+            "index": 2,
+            "name": "Pet House"
+          }
         },
         "builder_potion": {
-          "active": false,
-          "cooldown": 0
+          "active": true,
+          "cooldown": 3518
         },
         "builder_bite": {
           "active": false,
@@ -25,8 +39,21 @@
       },
       "Lab": {
         "timers": [
-          { "name": "Dragon Research", "value": 43200 }
+          {
+            "name": "Revive Spell Research",
+            "value": 5120
+          }
         ],
+        "lab_assistant": {
+          "active": false,
+          "assigned": true,
+          "cooldown": 36851,
+          "multiplier": 1,
+          "assigned_timer": {
+            "index": 0,
+            "name": "Revive Spell Research"
+          }
+        },
         "lab_potion": {
           "active": false,
           "cooldown": 0
@@ -34,19 +61,10 @@
         "study_soup": {
           "active": false,
           "cooldown": 0
-        },
-        "lab_assistant": {
-          "active": false,
-          "assigned": false,
-          "cooldown": 0,
-          "multiplier": 1
         }
       },
       "Pet": {
-        "timers": [
-          { "name": "Lassi", "value": 28800 },
-          { "name": "Mighty Yak", "value": 43200 }
-        ],
+        "timers": [],
         "pet_potion": {
           "active": false,
           "cooldown": 0
@@ -57,263 +75,24 @@
       "clock_tower": {
         "active": false,
         "cooldown": 0,
-        "active_cooldown_minutes": 30
+        "active_cooldown_minutes": 32
       },
-      "Building": [
-        { "name": "Archer Queen", "value": 43200 }
-      ],
-      "Lab": [
-        { "name": "Laboratory", "value": 36000 },
-        { "name": "Power P.E.K.K.A Research", "value": 28800 }
-      ]
-    }
-  },
-  {
-    "name": "Builder Account",
-    "Home Village": {
       "Building": {
         "timers": [
-          { "name": "Cannon", "value": 28800 },
-          { "name": "Army Camp", "value": 32400 }
-        ],
-        "builder_apprentice": {
-          "active": false,
-          "assigned": false,
-          "cooldown": 0,
-          "multiplier": 1
-        },
-        "builder_potion": {
-          "active": false,
-          "cooldown": 0
-        },
-        "builder_bite": {
-          "active": false,
-          "cooldown": 0
-        }
+          {
+            "name": "Cannon",
+            "value": 273021
+          },
+          {
+            "name": "Battle Copter",
+            "value": 336286
+          }
+        ]
       },
       "Lab": {
-        "timers": [
-          { "name": "Lightning Spell Research", "value": 36000 },
-          { "name": "Healing Potion Research", "value": 21600 }
-        ],
-        "lab_potion": {
-          "active": false,
-          "cooldown": 0
-        },
-        "study_soup": {
-          "active": false,
-          "cooldown": 0
-        },
-        "lab_assistant": {
-          "active": false,
-          "assigned": false,
-          "cooldown": 0,
-          "multiplier": 1
-        }
-      },
-      "Pet": {
-        "timers": [
-          { "name": "Electro Owl", "value": 32400 },
-          { "name": "Unicorn", "value": 54000 },
-          { "name": "Frosty", "value": 64800 }
-        ],
-        "pet_potion": {
-          "active": false,
-          "cooldown": 0
-        }
+        "timers": []
       }
     },
-    "Builder Base": {
-      "clock_tower": {
-        "active": false,
-        "cooldown": 0,
-        "active_cooldown_minutes": 30
-      },
-      "Building": [
-        { "name": "Builder Hall", "value": 64800 },
-        { "name": "Elixir Collector", "value": 18000 },
-        { "name": "Wall", "value": 5400 }
-      ],
-      "Lab": [
-        { "name": "Battle Machine Research", "value": 43200 }
-      ]
-    }
-  },
-  {
-    "name": "Dummy Account 1",
-    "Home Village": {
-      "Building": {
-        "timers": [
-          { "name": "Air Defense", "value": 14400 },
-          { "name": "Archer Tower", "value": 28800 }
-        ],
-        "builder_apprentice": { "active": false, "assigned": false, "cooldown": 0, "multiplier": 1 },
-        "builder_potion": { "active": false, "cooldown": 0 },
-        "builder_bite": { "active": false, "cooldown": 0 }
-      },
-      "Lab": {
-        "timers": [{ "name": "Hog Rider Research", "value": 36000 }],
-        "lab_assistant": { "active": false, "assigned": false, "cooldown": 0, "multiplier": 1 },
-        "lab_potion": { "active": false, "cooldown": 0 },
-        "study_soup": { "active": false, "cooldown": 0 }
-      },
-      "Pet": {
-        "timers": [{ "name": "Unicorn", "value": 43200 }],
-        "pet_potion": { "active": false, "cooldown": 0 }
-      }
-    },
-    "Builder Base": {
-      "clock_tower": { "active": false, "cooldown": 0, "active_cooldown_minutes": 30 },
-      "Building": [{ "name": "Crusher", "value": 21600 }],
-      "Lab": [{ "name": "Cannon Cart Research", "value": 28800 }]
-    }
-  },
-  {
-    "name": "Dummy Account 2",
-    "Home Village": {
-      "Building": {
-        "timers": [{ "name": "Wizard Tower", "value": 54000 }],
-        "builder_apprentice": { "active": false, "assigned": false, "cooldown": 0, "multiplier": 1 },
-        "builder_potion": { "active": false, "cooldown": 0 },
-        "builder_bite": { "active": false, "cooldown": 0 }
-      },
-      "Lab": {
-        "timers": [{ "name": "P.E.K.K.A Research", "value": 64800 }],
-        "lab_assistant": { "active": false, "assigned": false, "cooldown": 0, "multiplier": 1 },
-        "lab_potion": { "active": false, "cooldown": 0 },
-        "study_soup": { "active": false, "cooldown": 0 }
-      },
-      "Pet": {
-        "timers": [
-          { "name": "Mighty Yak", "value": 36000 },
-          { "name": "L.A.S.S.I", "value": 28800 }
-        ],
-        "pet_potion": { "active": false, "cooldown": 0 }
-      }
-    },
-    "Builder Base": {
-      "clock_tower": { "active": false, "cooldown": 0, "active_cooldown_minutes": 30 },
-      "Building": [{ "name": "Multi Mortar", "value": 43200 }],
-      "Lab": [{ "name": "Boxer Giant Research", "value": 36000 }]
-    }
-  },
-  {
-    "name": "Dummy Account 3",
-    "Home Village": {
-      "Building": {
-        "timers": [
-          { "name": "Cannon", "value": 10800 },
-          { "name": "Gold Storage", "value": 39600 }
-        ],
-        "builder_apprentice": { "active": false, "assigned": false, "cooldown": 0, "multiplier": 1 },
-        "builder_potion": { "active": false, "cooldown": 0 },
-        "builder_bite": { "active": false, "cooldown": 0 }
-      },
-      "Lab": {
-        "timers": [{ "name": "Archer Research", "value": 25200 }],
-        "lab_assistant": { "active": false, "assigned": false, "cooldown": 0, "multiplier": 1 },
-        "lab_potion": { "active": false, "cooldown": 0 },
-        "study_soup": { "active": false, "cooldown": 0 }
-      },
-      "Pet": {
-        "timers": [{ "name": "Electro Owl", "value": 57600 }],
-        "pet_potion": { "active": false, "cooldown": 0 }
-      }
-    },
-    "Builder Base": {
-      "clock_tower": { "active": false, "cooldown": 0, "active_cooldown_minutes": 30 },
-      "Building": [
-        { "name": "Roaster", "value": 32400 },
-        { "name": "Gold Mine", "value": 18000 }
-      ],
-      "Lab": []
-    }
-  },
-  {
-    "name": "Dummy Account 4",
-    "Home Village": {
-      "Building": {
-        "timers": [{ "name": "Town Hall", "value": 172800 }],
-        "builder_apprentice": { "active": false, "assigned": false, "cooldown": 0, "multiplier": 1 },
-        "builder_potion": { "active": false, "cooldown": 0 },
-        "builder_bite": { "active": false, "cooldown": 0 }
-      },
-      "Lab": {
-        "timers": [
-          { "name": "Dragon Research", "value": 46800 },
-          { "name": "Minion Research", "value": 30000 }
-        ],
-        "lab_assistant": { "active": false, "assigned": false, "cooldown": 0, "multiplier": 1 },
-        "lab_potion": { "active": false, "cooldown": 0 },
-        "study_soup": { "active": false, "cooldown": 0 }
-      },
-      "Pet": {
-        "timers": [{ "name": "Frosty", "value": 50400 }],
-        "pet_potion": { "active": false, "cooldown": 0 }
-      }
-    },
-    "Builder Base": {
-      "clock_tower": { "active": false, "cooldown": 0, "active_cooldown_minutes": 30 },
-      "Building": [{ "name": "Builder Hall", "value": 86400 }],
-      "Lab": [{ "name": "Night Witch Research", "value": 43200 }]
-    }
-  },
-  {
-    "name": "Dummy Account 5",
-    "Home Village": {
-      "Building": {
-        "timers": [
-          { "name": "Wall", "value": 7200 },
-          { "name": "Bomb Tower", "value": 64800 }
-        ],
-        "builder_apprentice": { "active": false, "assigned": false, "cooldown": 0, "multiplier": 1 },
-        "builder_potion": { "active": false, "cooldown": 0 },
-        "builder_bite": { "active": false, "cooldown": 0 }
-      },
-      "Lab": {
-        "timers": [{ "name": "Golem Research", "value": 57600 }],
-        "lab_assistant": { "active": false, "assigned": false, "cooldown": 0, "multiplier": 1 },
-        "lab_potion": { "active": false, "cooldown": 0 },
-        "study_soup": { "active": false, "cooldown": 0 }
-      },
-      "Pet": {
-        "timers": [
-          { "name": "L.A.S.S.I", "value": 21600 },
-          { "name": "Unicorn", "value": 72000 }
-        ],
-        "pet_potion": { "active": false, "cooldown": 0 }
-      }
-    },
-    "Builder Base": {
-      "clock_tower": { "active": false, "cooldown": 0, "active_cooldown_minutes": 30 },
-      "Building": [{ "name": "Double Cannon", "value": 25200 }],
-      "Lab": [{ "name": "Raged Barbarian Research", "value": 18000 }]
-    }
-  },
-  {
-    "name": "Dummy Account 6",
-    "Home Village": {
-      "Building": {
-        "timers": [{ "name": "Eagle Artillery", "value": 75600 }],
-        "builder_apprentice": { "active": false, "assigned": false, "cooldown": 0, "multiplier": 1 },
-        "builder_potion": { "active": false, "cooldown": 0 },
-        "builder_bite": { "active": false, "cooldown": 0 }
-      },
-      "Lab": {
-        "timers": [{ "name": "Healer Research", "value": 32400 }],
-        "lab_assistant": { "active": false, "assigned": false, "cooldown": 0, "multiplier": 1 },
-        "lab_potion": { "active": false, "cooldown": 0 },
-        "study_soup": { "active": false, "cooldown": 0 }
-      },
-      "Pet": {
-        "timers": [{ "name": "Mighty Yak", "value": 61200 }],
-        "pet_potion": { "active": false, "cooldown": 0 }
-      }
-    },
-    "Builder Base": {
-      "clock_tower": { "active": false, "cooldown": 0, "active_cooldown_minutes": 30 },
-      "Building": [{ "name": "Star Laboratory", "value": 39600 }],
-      "Lab": [{ "name": "Drop Ship Research", "value": 28800 }]
-    }
+    "tag": "#Y20QV9PLC"
   }
 ]

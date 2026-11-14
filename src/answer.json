@@ -1,0 +1,105 @@
+[
+  {
+    "name": "#9UVUJGQUY",
+    "tag": "#9UVUJGQUY",
+    "Home Village": {
+      "Building": {
+        "timers": [
+          {
+            "name": "Gold Storage",
+            "ends_at": 1794792333
+          },
+          {
+            "name": "Archer Tower",
+            "ends_at": 1794735709
+          },
+          {
+            "name": "Gold Storage",
+            "ends_at": 1794718019
+          },
+          {
+            "name": "Gold Storage",
+            "ends_at": 1794682594
+          },
+          {
+            "name": "Multi-Archer Tower",
+            "ends_at": 1794674199
+          },
+          {
+            "name": "Ricochet Cannon",
+            "ends_at": 1794941981
+          }
+        ],
+        "builder_apprentice": {
+          "active": false,
+          "assigned": true,
+          "multiplier": 6,
+          "assigned_timer": {
+            "index": 4,
+            "name": "Multi-Archer Tower"
+          },
+          "ends_at": 1794719300
+        },
+        "builder_potion": {
+          "active": false,
+          "ends_at": 1794642513
+        },
+        "builder_bite": {
+          "active": false,
+          "ends_at": 1794642513
+        }
+      },
+      "Lab": {
+        "timers": [
+          {
+            "name": "Yeti Research",
+            "ends_at": 1794740665
+          }
+        ],
+        "lab_assistant": {
+          "active": false,
+          "assigned": true,
+          "multiplier": 1,
+          "assigned_timer": {
+            "index": 0,
+            "name": "Yeti Research"
+          },
+          "ends_at": 1794719300
+        },
+        "lab_potion": {
+          "active": false,
+          "ends_at": 1794642513
+        },
+        "study_soup": {
+          "active": false,
+          "ends_at": 1794642513
+        }
+      },
+      "Pet": {
+        "timers": [
+          {
+            "name": "Phoenix",
+            "ends_at": 1794812244
+          }
+        ],
+        "pet_potion": {
+          "active": false,
+          "ends_at": 1794642513
+        }
+      }
+    },
+    "Builder Base": {
+      "clock_tower": {
+        "active": false,
+        "active_cooldown_minutes": 26
+      },
+      "Building": [
+        {
+          "name": "Firecrackers",
+          "ends_at": 1794642606
+        }
+      ],
+      "Lab": []
+    }
+  }
+]

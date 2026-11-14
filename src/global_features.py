@@ -80,15 +80,35 @@ class GlobalFeatures(ttk.Frame):
         village_menu.pack(side="left")
         self._village_filter_control = VillageFilterControl(app)
         self._sort_button.pack(side="left", padx=(16, 8))
-        ttk.Button(
-            self,
+        self._reset_button_frame = ttk.Frame(self, style="App.TFrame")
+        self._reset_button_frame.pack(side="left")
+        self._reset_button = ttk.Button(
+            self._reset_button_frame,
             text="Reset Filters",
             command=self.reset_filters,
-        ).pack(side="left")
+        )
+        self._reset_button.pack()
+        self._completion_dot = tk.Canvas(
+            self._reset_button_frame,
+            width=12,
+            height=12,
+            background="#f3f5f9",
+            borderwidth=0,
+            highlightthickness=0,
+        )
+        self._completion_dot.create_oval(
+            2, 2, 10, 10, fill="#dc2626", outline="#ffffff", width=1
+        )
+        self._completion_notification_pending = False
+        self._completion_dot.place(
+            relx=1.0, rely=0.0, x=2, y=-2, anchor="ne"
+        )
+        self._completion_dot.place_forget()
 
     def reset_filters(self) -> None:
         self.collapse_level.set("None")
         self.village_filter.set("Both")
+        self._clear_completion_notification()
         self._village_filter_control.show_village(self.village_filter.get())
         self._collapse_control.collapse_to_level(self.collapse_level.get())
         self._sort_control.reset_order()
@@ -101,15 +121,31 @@ class GlobalFeatures(ttk.Frame):
 
     def _select_village(self, village: str) -> None:
         self.village_filter.set(village)
+        if village == "Both":
+            self._clear_completion_notification()
         self._village_filter_control.show_village(self.village_filter.get())
         self._sort_control.resort_if_active()
         self.app._updates.refresh_display()
 
     def apply_village_filter(self) -> None:
         self._village_filter_control.show_village(self.village_filter.get())
+        if self.village_filter.get() == "Both":
+            self._clear_completion_notification()
         self._collapse_control.collapse_to_level(self.collapse_level.get())
         self._sort_control.resort_if_active()
         self.app._updates.refresh_display()
+
+    def notify_timer_completed(self, timer: Any) -> None:
+        selected_village = self.village_filter.get()
+        if selected_village != "Both" and timer.village != selected_village:
+            self._completion_notification_pending = True
+            self._completion_dot.place(
+                relx=1.0, rely=0.0, x=2, y=-2, anchor="ne"
+            )
+
+    def _clear_completion_notification(self) -> None:
+        self._completion_notification_pending = False
+        self._completion_dot.place_forget()
 
     def visible_timers(self, timers: List[Any]) -> List[Any]:
         return self._village_filter_control.visible_timers(

@@ -38,9 +38,9 @@ Primary features:
 
 * ~~Timers (CRUD).~~
 * ~~Accounts (CRUD).~~
-* Sorting and filtering timers by account, village and upgrade types.
+* ~~Sorting and filtering timers by account, village and upgrade types.~~
 * ~~A global view of timers.~~
-* Notifications.
+* ~~Notifications.~~
 * ~~Additional in-game boosts.~~
 
 Additional features are included, but not limited to:

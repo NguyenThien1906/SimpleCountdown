@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import ctypes
+from ctypes import wintypes
 from datetime import datetime, timedelta
+import sys
 import tkinter as tk
 from tkinter import messagebox
 from typing import Any, List, Optional, Tuple
@@ -32,11 +35,25 @@ class TimerUpdateController:
 
     def __init__(self, overview) -> None:
         self.overview = overview
+        self._summary_base_tags: dict[str, Tuple[str, ...]] = {}
+        self._unnoticed_timer_ids: set[str] = set()
+        self._completion_flash_phase = False
 
     def tick(self) -> None:
         overview = self.overview
-        for _timer_id, timer in overview._timer_items:
+        timer_completed = False
+        for timer_id, timer in overview._timer_items:
+            previous_time_left = timer.actual_time_left
             timer.advance()
+            if previous_time_left > 0 and timer.actual_time_left == 0:
+                timer_completed = True
+                self._unnoticed_timer_ids.add(timer_id)
+                overview.global_features.notify_timer_completed(timer)
+        if timer_completed:
+            self._completion_flash_phase = True
+            self._flash_taskbar_until_foreground()
+        elif self._unnoticed_timer_ids:
+            self._completion_flash_phase = not self._completion_flash_phase
         for (
             item_id,
             assistant,
@@ -120,6 +137,68 @@ class TimerUpdateController:
         self.refresh_display()
         overview.after(1000, self.tick)
 
+    def _flash_taskbar_until_foreground(self) -> None:
+        if sys.platform != "win32":
+            return
+
+        class FlashWindowInfo(ctypes.Structure):
+            _fields_ = [
+                ("cbSize", wintypes.UINT),
+                ("hwnd", wintypes.HWND),
+                ("dwFlags", wintypes.DWORD),
+                ("uCount", wintypes.UINT),
+                ("dwTimeout", wintypes.DWORD),
+            ]
+
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        get_ancestor = user32.GetAncestor
+        get_ancestor.argtypes = [wintypes.HWND, wintypes.UINT]
+        get_ancestor.restype = wintypes.HWND
+        flash_window = user32.FlashWindowEx
+        flash_window.argtypes = [ctypes.POINTER(FlashWindowInfo)]
+        flash_window.restype = wintypes.BOOL
+        window_handle = self.overview.winfo_toplevel().winfo_id()
+        top_level_handle = get_ancestor(window_handle, 2)
+        info = FlashWindowInfo(
+            ctypes.sizeof(FlashWindowInfo),
+            top_level_handle or window_handle,
+            0x00000002 | 0x0000000C,
+            0,
+            0,
+        )
+        flash_window(ctypes.byref(info))
+
+    def _stop_taskbar_flash(self) -> None:
+        if sys.platform != "win32":
+            return
+
+        class FlashWindowInfo(ctypes.Structure):
+            _fields_ = [
+                ("cbSize", wintypes.UINT),
+                ("hwnd", wintypes.HWND),
+                ("dwFlags", wintypes.DWORD),
+                ("uCount", wintypes.UINT),
+                ("dwTimeout", wintypes.DWORD),
+            ]
+
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        get_ancestor = user32.GetAncestor
+        get_ancestor.argtypes = [wintypes.HWND, wintypes.UINT]
+        get_ancestor.restype = wintypes.HWND
+        flash_window = user32.FlashWindowEx
+        flash_window.argtypes = [ctypes.POINTER(FlashWindowInfo)]
+        flash_window.restype = wintypes.BOOL
+        window_handle = self.overview.winfo_toplevel().winfo_id()
+        top_level_handle = get_ancestor(window_handle, 2)
+        info = FlashWindowInfo(
+            ctypes.sizeof(FlashWindowInfo),
+            top_level_handle or window_handle,
+            0,
+            0,
+            0,
+        )
+        flash_window(ctypes.byref(info))
+
     def refresh_display(self) -> None:
         self.refresh_timer_end_times()
         self.refresh_collapsed_summaries()
@@ -127,16 +206,37 @@ class TimerUpdateController:
 
     def refresh_timer_end_times(self) -> None:
         overview = self.overview
+        timer_ids = {timer_item[0] for timer_item in overview._timer_items}
+        ended_ids = {
+            timer_id
+            for timer_id, timer in overview._timer_items
+            if timer.actual_time_left == 0
+        }
+        had_unnoticed_timers = bool(self._unnoticed_timer_ids)
+        self._unnoticed_timer_ids.intersection_update(timer_ids & ended_ids)
+        if had_unnoticed_timers and not self._unnoticed_timer_ids:
+            self._stop_taskbar_flash()
+        summary_ids = {summary_item[0] for summary_item in overview._summary_items}
+        self._summary_base_tags = {
+            item_id: tags
+            for item_id, tags in self._summary_base_tags.items()
+            if item_id in summary_ids
+        }
         now = datetime.now()
         for timer_id, timer in overview._timer_items:
             seconds_until_done = timer.actual_time_left
             end_time = now + timedelta(seconds=seconds_until_done)
             overview._end_times[timer_id] = end_time
+            tags = overview.timer_view.timer_tags(seconds_until_done)
+            if timer_id in self._unnoticed_timer_ids:
+                phase = "on" if self._completion_flash_phase else "off"
+                tags = (f"timer_complete_flash_{phase}",)
             overview.tree.item(
                 timer_id,
                 values=overview.timer_view.timer_values(
                     timer, end_time, seconds_until_done
                 ),
+                tags=tags,
             )
 
     def sync_helper_timers(
@@ -197,20 +297,62 @@ class TimerUpdateController:
     def on_tree_toggle(self, _event: tk.Event) -> None:
         self.overview.after_idle(self.refresh_collapsed_summaries)
 
+    def on_tree_click(self, event: tk.Event) -> None:
+        item_id = self.overview.tree.identify_row(event.y)
+        if item_id in self._unnoticed_timer_ids:
+            self._notice_completed_row(item_id)
+
+    def _notice_completed_row(self, item_id: str) -> None:
+        if item_id not in self._unnoticed_timer_ids:
+            return
+
+        self._unnoticed_timer_ids.remove(item_id)
+        if not self._unnoticed_timer_ids:
+            self._stop_taskbar_flash()
+        self.refresh_display()
+
     def refresh_collapsed_summaries(self) -> None:
         overview = self.overview
         for item_id, label, timers in overview._summary_items:
             is_open = overview.tree.item(item_id, "open")
-            overview.tree.item(item_id, text=label)
             visible_timers = overview.global_features.visible_timers(timers)
             if not is_open and visible_timers:
-                shortest = min(visible_timers, key=lambda timer: timer.value)
+                shortest = min(
+                    visible_timers, key=lambda timer: timer.actual_time_left
+                )
+                visible_timer_ids = {id(timer) for timer in visible_timers}
+                unnoticed_ids = {
+                    timer_id
+                    for timer_id, timer in overview._timer_items
+                    if timer_id in self._unnoticed_timer_ids
+                    and id(timer) in visible_timer_ids
+                }
+                summary_label = (
+                    f"{label} ({len(unnoticed_ids)})" if unnoticed_ids else label
+                )
+                if item_id not in self._summary_base_tags:
+                    self._summary_base_tags[item_id] = overview.tree.item(
+                        item_id, "tags"
+                    )
+                summary_tags = overview.timer_view.timer_summary_tags(
+                    shortest.actual_time_left
+                )
                 overview.tree.item(
                     item_id,
+                    text=summary_label,
                     values=overview.timer_view.timer_values(shortest),
+                    tags=summary_tags,
                 )
             else:
-                overview.tree.item(item_id, values=("", "", "", ""))
+                base_tags = self._summary_base_tags.pop(
+                    item_id, overview.tree.item(item_id, "tags")
+                )
+                overview.tree.item(
+                    item_id,
+                    text=label,
+                    values=("", "", "", ""),
+                    tags=base_tags,
+                )
 
     def update_summary(self) -> None:
         overview = self.overview
@@ -230,6 +372,9 @@ class TimerMouseControls:
         self.potions = PotionControls(overview)
         self._context_menu = tk.Menu(overview, tearoff=False)
         self._context_menu.add_command(label="Edit", command=self.edit_selected_timer)
+        self._context_menu.add_command(
+            label="Remove", command=self.remove_selected_timer
+        )
         self._blank_context_menu = tk.Menu(overview, tearoff=False)
         self._blank_context_menu.add_command(
             label="Edit Account List", command=self.edit_account_list
@@ -303,6 +448,7 @@ class TimerMouseControls:
             self._context_menu.entryconfigure(
                 0, label="Edit", command=self.assistants.edit_selected_assistant
             )
+            self._context_menu.entryconfigure(1, state="disabled")
         elif any(
             timer_id == item_id for timer_id, _ in overview._timer_items
         ):
@@ -310,6 +456,7 @@ class TimerMouseControls:
             self._context_menu.entryconfigure(
                 0, label="Edit", command=self.edit_selected_timer
             )
+            self._context_menu.entryconfigure(1, state="normal")
         else:
             return
         self._context_menu.tk_popup(event.x_root, event.y_root)
@@ -325,6 +472,11 @@ class TimerMouseControls:
         )
 
     def on_left_click(self, event: tk.Event) -> None:
+        if not self.overview.tree.identify_row(event.y):
+            selection = self.overview.tree.selection()
+            if selection:
+                self.overview.tree.selection_remove(*selection)
+            return
         self.assistants.on_left_click(event)
 
     def edit_selected_timer_list(self) -> None:
@@ -376,56 +528,7 @@ class TimerMouseControls:
             self.apply_timer_edit(timer_id, timer, name, remaining)
 
         def delete_timer(timer: Timer) -> None:
-            timer_row = next(
-                item_id
-                for item_id, row_timer in overview._timer_items
-                if row_timer is timer
-            )
-            assigned_helper = next(
-                (
-                    helper
-                    for helper in (
-                        account.builder_apprentice,
-                        account.lab_assistant,
-                    )
-                    if helper.assigned_timer is timer
-                ),
-                None,
-            )
-            if assigned_helper is not None:
-                assigned_helper.assigned = False
-                assigned_helper.assigned_timer = None
-                if assigned_helper.active:
-                    assigned_helper.active = False
-                    assigned_helper.cooldown = assigned_helper.inactive_cooldown
-                timer.sync_helper(
-                    assigned_helper,
-                    assigned=False,
-                    active=False,
-                    recalculate=True,
-                )
-                overview._updates.sync_helper_timers(
-                    account, assigned_helper, recalculate=True
-                )
-                overview.timer_view.refresh_assistant_row(assigned_helper)
-
-            account.timers.remove(timer)
-            overview.tree.delete(timer_row)
-            overview._timer_items = [
-                (item_id, row_timer)
-                for item_id, row_timer in overview._timer_items
-                if row_timer is not timer
-            ]
-            overview._end_times.pop(timer_row, None)
-            for _item_id, _label, summary_timers in overview._summary_items:
-                summary_timers[:] = [
-                    summary_timer
-                    for summary_timer in summary_timers
-                    if summary_timer is not timer
-                ]
-            overview._updates.refresh_timer_end_times()
-            overview._updates.refresh_collapsed_summaries()
-            overview._updates.update_summary()
+            self.remove_timer(timer)
 
         TimerListDialog(
             overview,
@@ -456,6 +559,82 @@ class TimerMouseControls:
                 timer_id, timer, name, remaining
             ),
         )
+
+    def remove_selected_timer(self) -> None:
+        selection = self.overview.tree.selection()
+        if not selection:
+            return
+        timer = next(
+            (
+                timer
+                for item_id, timer in self.overview._timer_items
+                if item_id == selection[0]
+            ),
+            None,
+        )
+        if timer is not None:
+            self.remove_timer(timer)
+
+    def remove_timer(self, timer: Timer) -> None:
+        overview = self.overview
+        timer_row = next(
+            (
+                item_id
+                for item_id, row_timer in overview._timer_items
+                if row_timer is timer
+            ),
+            None,
+        )
+        account = next(
+            (account for account in overview.accounts if timer in account.timers),
+            None,
+        )
+        if timer_row is None or account is None:
+            return
+
+        assigned_helper = next(
+            (
+                helper
+                for helper in (account.builder_apprentice, account.lab_assistant)
+                if helper.assigned_timer is timer
+            ),
+            None,
+        )
+        if assigned_helper is not None:
+            assigned_helper.assigned = False
+            assigned_helper.assigned_timer = None
+            if assigned_helper.active:
+                assigned_helper.active = False
+                assigned_helper.cooldown = assigned_helper.inactive_cooldown
+            timer.sync_helper(
+                assigned_helper,
+                assigned=False,
+                active=False,
+                recalculate=True,
+            )
+            overview._updates.sync_helper_timers(
+                account, assigned_helper, recalculate=True
+            )
+            overview.timer_view.refresh_assistant_row(assigned_helper)
+
+        account.timers.remove(timer)
+        overview.tree.delete(timer_row)
+        overview._timer_items = [
+            (item_id, row_timer)
+            for item_id, row_timer in overview._timer_items
+            if row_timer is not timer
+        ]
+        overview._updates._unnoticed_timer_ids.discard(timer_row)
+        overview._end_times.pop(timer_row, None)
+        for _item_id, _label, summary_timers in overview._summary_items:
+            summary_timers[:] = [
+                summary_timer
+                for summary_timer in summary_timers
+                if summary_timer is not timer
+            ]
+        overview._updates.refresh_timer_end_times()
+        overview._updates.refresh_collapsed_summaries()
+        overview._updates.update_summary()
 
     def apply_timer_edit(
         self, timer_id: str, timer: Timer, name: str, remaining: int

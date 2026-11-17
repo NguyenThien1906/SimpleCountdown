@@ -152,6 +152,10 @@ class BuilderBaseControl(VillageControl):
     def _add_helper(
         self, overview: Any, account: Account, village_id: str
     ) -> None:
+        if account.clock_tower.recharge_cooldown > 0:
+            overview.timer_view.show_clock_tower_cooldown_row(
+                village_id, account.clock_tower
+            )
         eligible = [
             timer
             for timer in account.timers

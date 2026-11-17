@@ -263,6 +263,7 @@ class LabAssistant(Assistant):
 @dataclass
 class ClockTower(TimedBoost):
     active_cooldown_minutes: int = 30
+    recharge_cooldown: int = 0
 
     multiplier: int = field(default=9, init=False)
 

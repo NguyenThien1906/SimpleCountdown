@@ -8,241 +8,36 @@ import json
 import os
 import re
 from pathlib import Path
+import sys
 from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 
-DATA_ID_TO_NAME: Dict[int, str] = {
-    1000000: "Army Camp",
-    1000001: "Town Hall",
-    1000002: "Elixir Collector",
-    1000003: "Elixir Storage",
-    1000004: "Gold Mine",
-    1000005: "Gold Storage",
-    1000006: "Barracks",
-    1000007: "Laboratory",
-    1000008: "Cannon",
-    1000009: "Archer Tower",
-    1000010: "Wall",
-    1000011: "Wizard Tower",
-    1000012: "Air Defense",
-    1000013: "Mortar",
-    1000014: "Clan Castle",
-    1000015: "Builder's Hut",
-    1000019: "Hidden Tesla",
-    1000020: "Spell Factory",
-    1000021: "X-Bow",
-    1000023: "Dark Elixir Drill",
-    1000024: "Dark Elixir Storage",
-    1000026: "Dark Barracks",
-    1000027: "Inferno Tower",
-    1000028: "Air Sweeper",
-    1000029: "Dark Spell Factory",
-    1000032: "Bomb Tower",
-    1000033: "Wall",
-    1000034: "Builder Hall",
-    1000035: "Elixir Collector",
-    1000036: "Elixir Storage",
-    1000037: "Gold Mine",
-    1000038: "Gold Storage",
-    1000039: "Clock Tower",
-    1000040: "Builder Barracks",
-    1000041: "Double Cannon",
-    1000042: "Army Camp",
-    1000043: "Hidden Tesla",
-    1000044: "Cannon",
-    1000045: "Multi Mortar",
-    1000046: "Star Laboratory",
-    1000048: "Archer Tower",
-    1000049: "Reinforcement Camp",
-    1000050: "Firecrackers",
-    1000051: "Guard Post",
-    1000053: "Battle Machine Altar",
-    1000054: "Air Bombs",
-    1000055: "Crusher",
-    1000056: "Roaster",
-    1000058: "Gem Mine",
-    1000059: "Workshop",
-    1000067: "Scattershot",
-    1000068: "Pet House",
-    1000070: "Blacksmith",
-    1000071: "Hero Hall",
-    1000072: "Spell Tower",
-    1000077: "Monolith",
-    1000078: "O.T.T.O's Outpost",
-    1000082: "Healing Hut",
-    1000084: "Multi-Archer Tower",
-    1000085: "Ricochet Cannon",
-    1000089: "Firespitter",
-    1000093: "Helper Hut",
-    1000097: "Crafting Station",
-    4000000: "Barbarian",
-    4000001: "Archer",
-    4000002: "Goblin",
-    4000003: "Giant",
-    4000004: "Wall Breaker",
-    4000005: "Balloon",
-    4000006: "Wizard",
-    4000007: "Healer",
-    4000008: "Dragon",
-    4000009: "P.E.K.K.A",
-    4000010: "Minion",
-    4000011: "Hog Rider",
-    4000012: "Valkyrie",
-    4000013: "Golem",
-    4000015: "Witch",
-    4000017: "Lava Hound",
-    4000022: "Bowler",
-    4000023: "Baby Dragon",
-    4000024: "Miner",
-    4000031: "Raged Barbarian",
-    4000032: "Sneaky Archer",
-    4000033: "Beta Minion",
-    4000034: "Boxer Giant",
-    4000035: "Bomber",
-    4000037: "Cannon Cart",
-    4000041: "Baby Dragon",
-    4000042: "Night Witch",
-    4000051: "Wall Wrecker",
-    4000052: "Battle Blimp",
-    4000053: "Yeti",
-    4000058: "Ice Golem",
-    4000059: "Electro Dragon",
-    4000062: "Stone Slammer",
-    4000065: "Dragon Rider",
-    4000075: "Siege Barracks",
-    4000082: "Headhunter",
-    4000087: "Log Launcher",
-    4000095: "Electro Titan",
-    4000097: "Apprentice Warden",
-    4000109: "Ruin Witch",
-    4000110: "Root Rider",
-    4000123: "Druid",
-    4000132: "Thrower",
-    4000150: "Furnace",
-    8000004: "Bush",
-    8000008: "Mushroom",
-    8000010: "Trunk",
-    8000055: "Old Barbarian Statue",
-    8000063: "Tall Grass",
-    8000064: "Tall Grass",
-    8000091: "Root",
-    8000092: "Large Root",
-    12000000: "Bomb",
-    12000001: "Spring Trap",
-    12000002: "Giant Bomb",
-    12000005: "Air Bomb",
-    12000006: "Seeking Air Mine",
-    12000008: "Skeleton Trap",
-    12000010: "Spring Trap",
-    12000011: "Push Trap",
-    12000013: "Mine",
-    12000014: "Mega Mine",
-    12000016: "Tornado Trap",
-    18000065: "Logmas Tree",
-    18000069: "Wizard Statue",
-    18000070: "Goblin King Tribute",
-    18000115: "Gingerbread Bakery",
-    18000141: "Wizard Vendor",
-    18000172: "Rumbling Goblins",
-    18000173: "Golden Giant",
-    18000175: "Surprise Wheel",
-    18000239: "Bro Force",
-    18000248: "Unknown decoration (18000248)",
-    26000000: "Lightning Spell",
-    26000001: "Healing Spell",
-    26000002: "Rage Spell",
-    26000003: "Jump Spell",
-    26000005: "Freeze Spell",
-    26000009: "Poison Spell",
-    26000010: "Earthquake Spell",
-    26000011: "Haste Spell",
-    26000016: "Clone Spell",
-    26000017: "Skeleton Spell",
-    26000028: "Bat Spell",
-    26000035: "Invisibility Spell",
-    26000053: "Recall Spell",
-    26000070: "Overgrowth Spell",
-    26000098: "Revive Spell",
-    26000120: "Totem Spell",
-    28000000: "Barbarian King",
-    28000001: "Archer Queen",
-    28000002: "Grand Warden",
-    28000003: "Battle Machine",
-    28000004: "Royal Champion",
-    28000005: "Battle Copter",
-    28000006: "Minion Prince",
-    28000007: "Dragon Duke",
-    73000000: "L.A.S.S.I",
-    73000001: "Mighty Yak",
-    73000002: "Electro Owl",
-    73000003: "Unicorn",
-    73000004: "Phoenix",
-    73000007: "Poison Lizard",
-    73000008: "Diggy",
-    73000009: "Frosty",
-    73000010: "Spirit Fox",
-    73000011: "Angry Jelly",
-    90000000: "Barbarian Puppet",
-    90000001: "Rage Vial",
-    90000002: "Archer Puppet",
-    90000003: "Invisibility Vial",
-    90000004: "Eternal Tome",
-    90000005: "Life Gem",
-    90000006: "Seeking Shield",
-    90000007: "Royal Gem",
-    90000008: "Earthquake Boots",
-    90000009: "Hog Rider Puppet",
-    90000010: "Giant Gauntlet",
-    90000011: "Vampstache",
-    90000012: "Haste Vial",
-    90000013: "Rocket Spear",
-    90000014: "Spiky Ball",
-    90000015: "Frozen Arrow",
-    90000016: "Electro Fangs",
-    90000017: "Giant Arrow",
-    90000019: "Heroic Torch",
-    90000020: "Healer Puppet",
-    90000022: "Fireball",
-    90000024: "Rage Gem",
-    90000032: "Snake Bracelet",
-    90000034: "Healing Tome",
-    90000035: "Dark Crown",
-    90000039: "Magic Mirror",
-    90000040: "Electro Boots",
-    90000041: "Lavaloon Puppet",
-    90000042: "Henchmen Puppet",
-    90000043: "Dark Orb",
-    90000044: "Metal Pants",
-    90000047: "Noble Iron",
-    90000048: "Action Figure",
-    90000049: "Meteor Staff",
-    90000050: "Frost Flake",
-    90000051: "Stick Horse",
-    90000052: "Fire Heart",
-    90000053: "Rocket Backpack",
-    90000056: "Stun Blaster",
-    90000057: "Flame Blower",
-    90000059: "Monolith Arrow",
-    90000060: "Revenge Deck",
-    90000061: "Portal Pendant",
-    93000000: "Builder's Apprentice",
-    93000001: "Lab Assistant",
-    102000033: "Hitpoints",
-    102000034: "Damage",
-    102000035: "Seconds Active",
-    102000036: "Hitpoints",
-    102000037: "Damage",
-    102000038: "Poison Level",
-    102000039: "Hitpoints",
-    102000040: "Damage",
-    102000041: "Explosion Damage",
-    103000011: "Hot Candle",
-    103000012: "Hero Hunter",
-    103000013: "Cake-A-Pult",
-}
+def _load_data_id_to_name() -> Dict[int, str]:
+    if getattr(sys, "frozen", False):
+        path = Path(sys.executable).resolve().parent / "data_id.json"
+    else:
+        path = Path(__file__).with_name("data_id.json")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError("data_id.json must contain an object mapping IDs to names.")
+
+    translated: Dict[int, str] = {}
+    for raw_id, name in data.items():
+        if not isinstance(raw_id, str) or not raw_id.isdecimal():
+            raise ValueError(f"Invalid data ID {raw_id!r} in data_id.json.")
+        data_id = int(raw_id)
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(f"Name for data ID {raw_id!r} must be a non-empty string.")
+        if data_id in translated:
+            raise ValueError(f"Duplicate data ID {raw_id!r} in data_id.json.")
+        translated[data_id] = name
+    return translated
+
+
+DATA_ID_TO_NAME = _load_data_id_to_name()
 
 
 def translate_data_ids(value: Any) -> Any:
@@ -272,7 +67,7 @@ def translate_village_data(
 
 
 _TIMER_GROUPS: Dict[Tuple[str, str], Tuple[str, ...]] = {
-    ("Home Village", "Building"): ("buildings", "heroes", "traps"),
+    ("Home Village", "Building"): ("buildings", "heroes", "traps", "guardians"),
     ("Home Village", "Lab"): ("units", "siege_machines", "spells"),
     ("Home Village", "Pet"): ("pets",),
     ("Builder Base", "Building"): ("buildings2", "traps2", "heroes2"),
@@ -502,6 +297,23 @@ def extract_timers_from_data(
         or clock_tower_level < 1
     ):
         raise ValueError("Clock Tower level must be a positive integer.")
+    boosts = village_data.get("boosts", {})
+    if not isinstance(boosts, dict):
+        raise ValueError("Village export field 'boosts' must contain an object.")
+    lab_boost = boosts.get("lab_boost", 0)
+    builder_bite_duration = boosts.get("builder_consumable", 0)
+    clock_tower_boost = boosts.get("clocktower_boost", 0)
+    clock_tower_cooldown = boosts.get("clocktower_cooldown", 0)
+    for field, value in (
+        ("lab_boost", lab_boost),
+        ("builder_consumable", builder_bite_duration),
+        ("clocktower_boost", clock_tower_boost),
+        ("clocktower_cooldown", clock_tower_cooldown),
+    ):
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ValueError(
+                f"Village export boost {field!r} must be a non-negative integer."
+            )
     player_name = get_player_name(tag)
     return [
         {
@@ -517,7 +329,10 @@ def extract_timers_from_data(
                         assigned_timers[_BUILDER_APPRENTICE_ID],
                     ),
                     "builder_potion": {"active": False, "cooldown": 0},
-                    "builder_bite": {"active": False, "cooldown": 0},
+                    "builder_bite": {
+                        "active": builder_bite_duration > 0,
+                        "cooldown": builder_bite_duration,
+                    },
                 },
                 "Lab": {
                     "timers": groups[("Home Village", "Lab")],
@@ -526,7 +341,10 @@ def extract_timers_from_data(
                         _LAB_ASSISTANT_ID,
                         assigned_timers[_LAB_ASSISTANT_ID],
                     ),
-                    "lab_potion": {"active": False, "cooldown": 0},
+                    "lab_potion": {
+                        "active": lab_boost > 0,
+                        "cooldown": lab_boost,
+                    },
                     "study_soup": {"active": False, "cooldown": 0},
                 },
                 "Pet": {
@@ -536,8 +354,9 @@ def extract_timers_from_data(
             },
             "Builder Base": {
                 "clock_tower": {
-                    "active": False,
-                    "cooldown": 0,
+                    "active": clock_tower_boost > 0,
+                    "cooldown": clock_tower_boost,
+                    "recharge_cooldown": clock_tower_cooldown,
                     "active_cooldown_minutes": 12 + 2 * clock_tower_level,
                 },
                 "Building": groups[("Builder Base", "Building")],

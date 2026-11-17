@@ -99,10 +99,18 @@ class TimerUpdateController:
                     values=overview.timer_view.assistant_values(assistant),
                 )
                 continue
-            if assistant.cooldown > 0:
+            if isinstance(assistant, ClockTower):
+                if assistant.cooldown > 0:
+                    assistant.cooldown -= 1
+                    if assistant.cooldown == 0:
+                        assistant.active = False
+                if assistant.recharge_cooldown > 0:
+                    assistant.recharge_cooldown -= 1
+                overview.timer_view.refresh_clock_tower_cooldown_row(assistant)
+            elif assistant.cooldown > 0:
                 assistant.cooldown -= 1
                 if assistant.cooldown == 0 and (
-                    isinstance(assistant, ClockTower) or assistant.assigned
+                    assistant.assigned
                 ):
                     assistant.active = not assistant.active
                     assistant.cooldown = (
@@ -251,6 +259,7 @@ class TimerUpdateController:
                 tags = (f"timer_complete_flash_{phase}",)
             overview.tree.item(
                 timer_id,
+                image=overview.timer_view.timer_image(timer),
                 values=overview.timer_view.timer_values(
                     timer, end_time, seconds_until_done
                 ),
@@ -378,7 +387,7 @@ class TimerUpdateController:
                 overview.tree.item(
                     item_id,
                     text=label,
-                    values=("", "", "", ""),
+                    values=("", "", ""),
                     tags=base_tags,
                 )
 
@@ -445,6 +454,19 @@ class TimerMouseControls:
         self._builder_base_context_menu.add_command(
             label="Edit Timer List", command=self.edit_selected_timer_list
         )
+        self._clock_tower_context_menu = tk.Menu(overview, tearoff=False)
+        self._clock_tower_context_menu.add_command(
+            label="Activate",
+            command=self.assistants.activate_selected_clock_tower,
+        )
+        self._clock_tower_context_menu.add_command(
+            label="Clock Tower Potion",
+            command=self.assistants.use_clock_tower_potion,
+        )
+        self._clock_tower_context_menu.add_separator()
+        self._clock_tower_context_menu.add_command(
+            label="Edit", command=self.assistants.edit_selected_assistant
+        )
 
     def show_context_menu(self, event: tk.Event) -> None:
         overview = self.overview
@@ -484,11 +506,31 @@ class TimerMouseControls:
                 event.x_root, event.y_root
             )
             return
-        if any(
-            row_id == item_id
-            for row_id, _assistant, _account, _name, _eligible
-            in overview._assistant_items
-        ):
+        assistant_row = next(
+            (
+                row
+                for row in overview._assistant_items
+                if row[0] == item_id
+            ),
+            None,
+        )
+        if assistant_row is not None and isinstance(assistant_row[1], ClockTower):
+            overview.tree.selection_set(item_id)
+            clock_tower = assistant_row[1]
+            self._clock_tower_context_menu.entryconfigure(
+                0,
+                state=(
+                    "disabled"
+                    if clock_tower.active
+                    or clock_tower.cooldown > 0
+                    or clock_tower.recharge_cooldown > 0
+                    else "normal"
+                ),
+            )
+            self._clock_tower_context_menu.entryconfigure(1, state="normal")
+            self._clock_tower_context_menu.tk_popup(event.x_root, event.y_root)
+            return
+        if assistant_row is not None:
             overview.tree.selection_set(item_id)
             self._context_menu.entryconfigure(
                 0, label="Edit", command=self.assistants.edit_selected_assistant
@@ -704,6 +746,7 @@ class TimerMouseControls:
         overview.tree.item(
             timer_id,
             text=timer.name,
+            image=overview.timer_view.timer_image(timer),
             values=overview.timer_view.timer_values(
                 timer, overview._end_times[timer_id]
             ),
@@ -711,6 +754,7 @@ class TimerMouseControls:
         overview._updates.refresh_timer_end_times()
         overview._updates.refresh_collapsed_summaries()
         overview._updates.update_summary()
+        overview.persist_accounts()
 
 
 class AssistantControls:
@@ -736,7 +780,11 @@ class AssistantControls:
 
         assistant, account, _assistant_name, eligible = assistant_row
         if isinstance(assistant, ClockTower):
-            if assistant.active or assistant.cooldown != 0:
+            if (
+                assistant.active
+                or assistant.cooldown != 0
+                or assistant.recharge_cooldown != 0
+            ):
                 return
             confirmed = messagebox.askyesno(
                 "Activate Clock Tower",
@@ -747,12 +795,7 @@ class AssistantControls:
             )
             if not confirmed:
                 return
-            assistant.active = True
-            assistant.cooldown = assistant.active_cooldown
-            overview._updates.sync_helper_timers(account, assistant)
-            overview.timer_view.refresh_assistant_row(assistant)
-            overview._updates.refresh_timer_end_times()
-            overview._updates.refresh_collapsed_summaries()
+            self._activate_clock_tower(item_id, assistant, account)
             return
 
         if assistant.active or assistant.cooldown != 0 or assistant.assigned:
@@ -763,6 +806,72 @@ class AssistantControls:
             lambda timer: self.assign_assistant(assistant, timer),
             assignment_scope=self._assignment_scope(assistant),
         )
+
+    def _activate_clock_tower(
+        self, item_id: str, clock_tower: ClockTower, account: Account
+    ) -> None:
+        if (
+            clock_tower.active
+            or clock_tower.cooldown != 0
+            or clock_tower.recharge_cooldown != 0
+        ):
+            return
+        overview = self.overview
+        clock_tower.active = True
+        clock_tower.cooldown = clock_tower.active_cooldown
+        clock_tower.recharge_cooldown = (
+            clock_tower.inactive_cooldown + clock_tower.active_cooldown
+        )
+        overview.timer_view.show_clock_tower_cooldown_row(
+            overview.tree.parent(item_id), clock_tower
+        )
+        overview._updates.sync_helper_timers(account, clock_tower, recalculate=True)
+        overview.timer_view.refresh_assistant_row(clock_tower)
+        overview._updates.refresh_timer_end_times()
+        overview._updates.refresh_collapsed_summaries()
+
+    def activate_selected_clock_tower(self) -> None:
+        overview = self.overview
+        selection = overview.tree.selection()
+        if not selection:
+            return
+        assistant_row = next(
+            (
+                row
+                for row in overview._assistant_items
+                if row[0] == selection[0] and isinstance(row[1], ClockTower)
+            ),
+            None,
+        )
+        if assistant_row is not None:
+            item_id, clock_tower, account, _name, _eligible = assistant_row
+            self._activate_clock_tower(item_id, clock_tower, account)
+
+    def use_clock_tower_potion(self) -> None:
+        overview = self.overview
+        selection = overview.tree.selection()
+        if not selection:
+            return
+        assistant_row = next(
+            (
+                row
+                for row in overview._assistant_items
+                if row[0] == selection[0] and isinstance(row[1], ClockTower)
+            ),
+            None,
+        )
+        if assistant_row is None:
+            return
+        _item_id, clock_tower, account, _name, _eligible = assistant_row
+        if clock_tower.active:
+            clock_tower.cooldown += 30 * 60
+        else:
+            clock_tower.active = True
+            clock_tower.cooldown = 30 * 60
+        overview._updates.sync_helper_timers(account, clock_tower, recalculate=True)
+        overview.timer_view.refresh_assistant_row(clock_tower)
+        overview._updates.refresh_timer_end_times()
+        overview._updates.refresh_collapsed_summaries()
 
     @staticmethod
     def _assignment_scope(assistant: Helper) -> str:
@@ -855,6 +964,18 @@ class AssistantControls:
                 assistant.active_cooldown_minutes = active_cooldown_minutes
             if assistant.active and active_cooldown_minutes is not None:
                 assistant.cooldown = assistant.active_cooldown
+                assistant.recharge_cooldown = (
+                    assistant.inactive_cooldown + assistant.active_cooldown
+                )
+            elif not assistant.active:
+                assistant.cooldown = 0
+            parent_id = overview.tree.parent(item_id)
+            if assistant.recharge_cooldown > 0:
+                overview.timer_view.show_clock_tower_cooldown_row(
+                    parent_id, assistant
+                )
+            else:
+                overview.timer_view.refresh_clock_tower_cooldown_row(assistant)
         else:
             assistant.multiplier = multiplier
             assistant.assigned = assigned

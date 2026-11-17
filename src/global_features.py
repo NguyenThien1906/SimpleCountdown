@@ -34,6 +34,7 @@ class GlobalFeatures(ttk.Frame):
             self,
             textvariable=self.collapse_level,
             width=15,
+            style="App.TMenubutton",
         )
         collapse_options = tk.Menu(collapse_menu, tearoff=False)
         collapse_options.add_command(
@@ -54,6 +55,7 @@ class GlobalFeatures(ttk.Frame):
         self._sort_button = ttk.Button(
             self,
             text="Sort",
+            style="App.TButton",
         )
         self._sort_control = AccountSortControl(app, self._sort_button)
         self._collapse_control = TreeCollapseControl(app)
@@ -65,6 +67,7 @@ class GlobalFeatures(ttk.Frame):
             self,
             textvariable=self.village_filter,
             width=15,
+            style="App.TMenubutton",
         )
         village_options = tk.Menu(village_menu, tearoff=False)
         village_options.add_command(
@@ -87,6 +90,7 @@ class GlobalFeatures(ttk.Frame):
             self._reset_button_frame,
             text="Reset Filters",
             command=self.reset_filters,
+            style="App.TButton",
         )
         self._reset_button.pack()
         self._completion_dot = tk.Canvas(
@@ -110,6 +114,7 @@ class GlobalFeatures(ttk.Frame):
             text="⚙",
             width=3,
             command=self._open_settings,
+            style="App.TButton",
         )
         self._settings_button.pack(side="right")
 
@@ -118,6 +123,13 @@ class GlobalFeatures(ttk.Frame):
             self.winfo_toplevel(),
             low_power_mode=self.app.low_power_mode,
             on_low_power_mode_changed=self.app.set_low_power_mode,
+            dark_mode=self.app.dark_mode,
+            on_dark_mode_changed=self.app.set_dark_mode,
+        )
+
+    def set_dark_mode(self, enabled: bool) -> None:
+        self._completion_dot.configure(
+            background="#24292f" if enabled else "#f3f5f9"
         )
 
     def reset_filters(self) -> None:

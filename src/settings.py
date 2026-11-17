@@ -53,6 +53,8 @@ class SettingsDialog(tk.Toplevel):
         master: tk.Misc,
         low_power_mode: bool = False,
         on_low_power_mode_changed: Optional[Callable[[bool], None]] = None,
+        dark_mode: bool = False,
+        on_dark_mode_changed: Optional[Callable[[bool], None]] = None,
     ) -> None:
         super().__init__(master)
         self.title("Settings")
@@ -60,9 +62,9 @@ class SettingsDialog(tk.Toplevel):
         self.resizable(False, False)
         self.bind("<Escape>", lambda _event: self.destroy())
 
-        content = ttk.Frame(self, padding=18)
+        content = ttk.Frame(self, padding=18, style="Settings.TFrame")
         content.grid(row=0, column=0, sticky="nsew")
-        ttk.Label(content, text="Low-power Mode").grid(
+        ttk.Label(content, text="Low-power Mode", style="Settings.TLabel").grid(
             row=0, column=0, sticky="w", padx=(0, 16)
         )
         self.low_power_mode_var = tk.BooleanVar(self, value=low_power_mode)
@@ -73,7 +75,20 @@ class SettingsDialog(tk.Toplevel):
                     self.low_power_mode_var.get()
                 ),
             )
-        _ToggleSwitch(content, self.low_power_mode_var).grid(row=0, column=1)
+        self._low_power_mode_switch = _ToggleSwitch(
+            content, self.low_power_mode_var
+        )
+        self._low_power_mode_switch.grid(row=0, column=1)
+
+        ttk.Label(content, text="Dark Mode", style="Settings.TLabel").grid(
+            row=1, column=0, sticky="w", padx=(0, 16), pady=(12, 0)
+        )
+        self.dark_mode_var = tk.BooleanVar(self, value=dark_mode)
+        self._dark_mode_switch = _ToggleSwitch(content, self.dark_mode_var)
+        self._dark_mode_switch.grid(row=1, column=1, pady=(12, 0))
+        self._on_dark_mode_changed_callback = on_dark_mode_changed
+        self.dark_mode_var.trace_add("write", self._on_dark_mode_changed)
+        self._on_dark_mode_changed()
 
         self.geometry("320x180")
         self.update_idletasks()
@@ -81,3 +96,13 @@ class SettingsDialog(tk.Toplevel):
         y = master.winfo_rooty() + (master.winfo_height() - self.winfo_height()) // 2
         self.geometry(f"+{x}+{y}")
         self.grab_set()
+
+    def _on_dark_mode_changed(self, *_args: str) -> None:
+        enabled = self.dark_mode_var.get()
+        background = "#24292f" if enabled else "#f3f5f9"
+        self.configure(background=background)
+        self._low_power_mode_switch.configure(background=background)
+        self._dark_mode_switch.configure(background=background)
+        callback = self._on_dark_mode_changed_callback
+        if callback is not None:
+            callback(enabled)

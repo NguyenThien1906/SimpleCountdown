@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import json
 import math
 import os
@@ -5,7 +6,7 @@ from pathlib import Path
 import sys
 import tempfile
 import time
-from typing import List, Optional, Type, Union
+from typing import List, Optional, Tuple, Type, Union
 
 DATA_FILE = "data.json"
 
@@ -28,10 +29,44 @@ from assets import (
 )
 
 
+@dataclass(frozen=True)
+class AppSettings:
+    low_power_mode: bool = False
+    dark_mode: bool = False
+
+
 def _default_data_path() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent / DATA_FILE
     return Path(__file__).resolve().parent / DATA_FILE
+
+
+def load_settings(
+    file_path: Optional[Union[str, Path]] = None,
+) -> AppSettings:
+    path = Path(file_path) if file_path is not None else _default_data_path()
+    try:
+        with path.open("r", encoding="utf-8") as data_file:
+            document = json.load(data_file)
+    except FileNotFoundError:
+        return AppSettings()
+
+    if not isinstance(document, dict):
+        return AppSettings()
+    settings = document.get("settings")
+    if settings is None:
+        return AppSettings()
+    if not isinstance(settings, dict):
+        raise ValueError("The application settings must be an object.")
+
+    low_power_mode = settings.get("low_power_mode", False)
+    dark_mode = settings.get("dark_mode", False)
+    if not isinstance(low_power_mode, bool) or not isinstance(dark_mode, bool):
+        raise ValueError("Application settings must be boolean values.")
+    return AppSettings(
+        low_power_mode=low_power_mode,
+        dark_mode=dark_mode,
+    )
 
 
 
@@ -62,12 +97,24 @@ def _load_assistant(record: object, name: str, account_name: str):
 
 
 def _remaining_seconds(
-    record: dict,
+    ends_at: object,
     helper_name: str,
     account_name: str,
     now: float,
+    end_description: str = "end time",
 ) -> int:
-    ends_at = record.get("ends_at")
+    ends_at = _validated_end_timestamp(
+        ends_at, helper_name, account_name, end_description
+    )
+    return max(0, math.ceil(ends_at - now))
+
+
+def _validated_end_timestamp(
+    ends_at: object,
+    item_name: str,
+    account_name: str,
+    end_description: str = "end time",
+) -> float:
     if (
         isinstance(ends_at, bool)
         or not isinstance(ends_at, (int, float))
@@ -75,10 +122,10 @@ def _remaining_seconds(
         or ends_at < 0
     ):
         raise ValueError(
-            f"{helper_name} end time for account {account_name!r} "
+            f"{item_name} {end_description} for account {account_name!r} "
             "must be a non-negative timestamp."
         )
-    return max(0, math.ceil(ends_at - now))
+    return float(ends_at)
 
 
 def _elapse_cycling_helper(helper: Helper, elapsed_seconds: int) -> None:
@@ -127,8 +174,12 @@ def _restore_helper_cooldown(
         return
 
     ends_at = record["ends_at"]
-    helper.cooldown = _remaining_seconds(record, helper_name, account_name, now)
+    helper.cooldown = _remaining_seconds(
+        ends_at, helper_name, account_name, now
+    )
     if ends_at <= now:
+        if record.get("cooldown") == 0:
+            return
         if not cycles_when_unassigned and (
             not isinstance(helper, Assistant) or not helper.assigned
         ):
@@ -244,6 +295,8 @@ def _simulate_elapsed(account: Account, elapsed_seconds: int) -> None:
         for helper in (*assistants, account.clock_tower):
             if helper.cooldown > 0:
                 ticks = min(ticks, helper.cooldown)
+        if account.clock_tower.recharge_cooldown > 0:
+            ticks = min(ticks, account.clock_tower.recharge_cooldown)
         for boost in boosts:
             if boost.active and boost.cooldown > 0:
                 ticks = min(ticks, boost.cooldown)
@@ -278,12 +331,9 @@ def _simulate_elapsed(account: Account, elapsed_seconds: int) -> None:
         if account.clock_tower.cooldown > 0:
             account.clock_tower.cooldown -= ticks
             if account.clock_tower.cooldown == 0:
-                account.clock_tower.active = not account.clock_tower.active
-                account.clock_tower.cooldown = (
-                    account.clock_tower.active_cooldown
-                    if account.clock_tower.active
-                    else account.clock_tower.inactive_cooldown
-                )
+                account.clock_tower.active = False
+        if account.clock_tower.recharge_cooldown > 0:
+            account.clock_tower.recharge_cooldown -= ticks
 
         for boost in boosts:
             if boost.active:
@@ -301,8 +351,15 @@ def _simulate_elapsed(account: Account, elapsed_seconds: int) -> None:
 def load_accounts(file_path: Optional[Union[str, Path]] = None) -> List[Account]:
     path = Path(file_path) if file_path is not None else _default_data_path()
 
-    with path.open("r", encoding="utf-8") as data_file:
-        records = json.load(data_file)
+    try:
+        with path.open("r", encoding="utf-8") as data_file:
+            records = json.load(data_file)
+    except FileNotFoundError:
+        return []
+    if isinstance(records, dict):
+        if "accounts" not in records:
+            raise ValueError("The timer data must contain an accounts list.")
+        records = records["accounts"]
     return load_accounts_from_records(records)
 
 
@@ -356,6 +413,7 @@ def load_accounts_from_records(records: object) -> List[Account]:
             raise ValueError(f"Account {name!r} tag must be a string.")
 
         timers: List[Timer] = []
+        timer_end_times: List[Tuple[Timer, float]] = []
         builder_apprentice = BuilderApprentice()
         lab_assistant = LabAssistant()
         clock_tower = ClockTower()
@@ -377,6 +435,8 @@ def load_accounts_from_records(records: object) -> List[Account]:
                     )
                 active = tower_record.get("active", False)
                 cooldown = tower_record.get("cooldown", 0)
+                has_recharge_cooldown = "recharge_cooldown" in tower_record
+                recharge_cooldown = tower_record.get("recharge_cooldown", 0)
                 active_cooldown_minutes = tower_record.get(
                     "active_cooldown_minutes", 30
                 )
@@ -390,6 +450,15 @@ def load_accounts_from_records(records: object) -> List[Account]:
                         "must be a non-negative integer."
                     )
                 if (
+                    isinstance(recharge_cooldown, bool)
+                    or not isinstance(recharge_cooldown, int)
+                    or recharge_cooldown < 0
+                ):
+                    raise ValueError(
+                        f"Clock Tower recharge cooldown for account {name!r} "
+                        "must be a non-negative integer."
+                    )
+                if (
                     isinstance(active_cooldown_minutes, bool)
                     or not isinstance(active_cooldown_minutes, int)
                     or active_cooldown_minutes < 0
@@ -398,10 +467,17 @@ def load_accounts_from_records(records: object) -> List[Account]:
                         f"Clock Tower active cooldown for account {name!r} "
                         "must be a non-negative integer."
                     )
+                if not has_recharge_cooldown:
+                    if active:
+                        recharge_cooldown = cooldown + 22 * 60 * 60
+                    else:
+                        recharge_cooldown = cooldown
+                        cooldown = 0
                 clock_tower = ClockTower(
                     active=active,
                     cooldown=cooldown,
                     active_cooldown_minutes=active_cooldown_minutes,
+                    recharge_cooldown=recharge_cooldown,
                 )
                 _restore_helper_cooldown(
                     clock_tower,
@@ -410,8 +486,22 @@ def load_accounts_from_records(records: object) -> List[Account]:
                     name,
                     now,
                     helper_elapsed_seconds,
-                    cycles_when_unassigned=True,
                 )
+                if clock_tower.cooldown == 0:
+                    clock_tower.active = False
+                if "recharge_ends_at" in tower_record:
+                    clock_tower.recharge_cooldown = _remaining_seconds(
+                        tower_record["recharge_ends_at"],
+                        "Clock Tower recharge",
+                        name,
+                        now,
+                        "end time",
+                    )
+                else:
+                    clock_tower.recharge_cooldown = max(
+                        0,
+                        clock_tower.recharge_cooldown - helper_elapsed_seconds,
+                    )
 
             for category in SUBCATEGORIES[village]:
                 category_record = village_record.get(category)
@@ -544,8 +634,22 @@ def load_accounts_from_records(records: object) -> List[Account]:
                                 f"for account {name!r} must have a non-negative "
                                 "end timestamp."
                             )
-                        remaining = max(0, math.ceil(ends_at - now))
+                        if saved_at is not None:
+                            if (
+                                isinstance(value, bool)
+                                or not isinstance(value, int)
+                                or value < 0
+                            ):
+                                raise ValueError(
+                                    f"Timer {timer_name!r} in {village!r} / "
+                                    f"{category} for account {name!r} must have "
+                                    "a non-negative integer value in seconds."
+                                )
+                            remaining = value
+                        else:
+                            remaining = max(0, math.ceil(ends_at - now))
                     else:
+                        ends_at = None
                         if (
                             isinstance(value, bool)
                             or not isinstance(value, int)
@@ -569,6 +673,8 @@ def load_accounts_from_records(records: object) -> List[Account]:
                     )
                     timers.append(timer)
                     category_timers.append(timer)
+                    if ends_at is not None and saved_at is not None:
+                        timer_end_times.append((timer, ends_at))
 
                 if helper_name is not None and assistant is not None:
                     assigned_timer = helper_record.get("assigned_timer")
@@ -628,23 +734,205 @@ def load_accounts_from_records(records: object) -> List[Account]:
         )
         if saved_at is not None:
             _simulate_elapsed(account, simulation_seconds)
+            for timer, ends_at in timer_end_times:
+                timer.actual_time_left = max(0, math.ceil(ends_at - now))
         accounts.append(account)
 
     return accounts
 
 
-def _serialize_timer(timer: Timer) -> dict:
-    return {"name": timer.name, "value": max(0, timer.value)}
+def synchronize_accounts_from_saved_end_times(
+    accounts: List[Account],
+    file_path: Optional[Union[str, Path]] = None,
+) -> int:
+    """Advance all account state by shared timer drift from the saved data."""
+    path = Path(file_path) if file_path is not None else _default_data_path()
+    try:
+        with path.open("r", encoding="utf-8") as data_file:
+            document = json.load(data_file)
+    except FileNotFoundError:
+        return 0
+
+    records = document.get("accounts") if isinstance(document, dict) else document
+    if not isinstance(records, list):
+        raise ValueError("The timer data must contain a list of accounts.")
+    if len(records) != len(accounts):
+        return 0
+
+    now = time.time()
+    drifts: List[float] = []
+    timer_groups = (
+        ("Home Village", "Building"),
+        ("Home Village", "Lab"),
+        ("Home Village", "Pet"),
+        ("Builder Base", "Building"),
+        ("Builder Base", "Lab"),
+    )
+    for account, record in zip(accounts, records):
+        if not isinstance(record, dict):
+            raise ValueError("Saved account data must contain objects.")
+        if record.get("name") != account.name or record.get("tag") != account.tag:
+            return 0
+
+        grouped_timers = {
+            group: [
+                timer
+                for timer in account.timers
+                if timer.village == group[0] and timer.category == group[1]
+            ]
+            for group in timer_groups
+        }
+        if sum(map(len, grouped_timers.values())) != len(account.timers):
+            return 0
+
+        for village, category in timer_groups:
+            village_record = record.get(village)
+            if not isinstance(village_record, dict):
+                raise ValueError(f"Saved account {account.name!r} has invalid village data.")
+            category_record = village_record.get(category)
+            timer_records = (
+                category_record.get("timers")
+                if isinstance(category_record, dict)
+                else category_record
+            )
+            timers = grouped_timers[(village, category)]
+            if not isinstance(timer_records, list):
+                raise ValueError(
+                    f"Saved timer data for {village!r} / {category} "
+                    f"for account {account.name!r} must be a list."
+                )
+            if len(timer_records) != len(timers):
+                return 0
+            for timer, timer_record in zip(timers, timer_records):
+                if not isinstance(timer_record, dict):
+                    raise ValueError("Saved timer data must contain objects.")
+                if timer_record.get("name") != timer.name:
+                    return 0
+                if timer.actual_time_left <= 0:
+                    continue
+                saved_end = timer_record.get("ends_at")
+                if saved_end is None:
+                    return 0
+                saved_end = _validated_end_timestamp(
+                    saved_end, timer.name, account.name
+                )
+                drifts.append(now + timer.actual_time_left - saved_end)
+
+        helper_records = (
+            (
+                account.builder_apprentice,
+                record.get("Home Village", {}).get("Building", {}).get(
+                    "builder_apprentice"
+                ),
+                "Builder Apprentice",
+                "ends_at",
+            ),
+            (
+                account.lab_assistant,
+                record.get("Home Village", {}).get("Lab", {}).get(
+                    "lab_assistant"
+                ),
+                "Lab Assistant",
+                "ends_at",
+            ),
+            (
+                account.builder_potion,
+                record.get("Home Village", {}).get("Building", {}).get(
+                    "builder_potion"
+                ),
+                "Builder Potion",
+                "ends_at",
+            ),
+            (
+                account.builder_bite,
+                record.get("Home Village", {}).get("Building", {}).get(
+                    "builder_bite"
+                ),
+                "Builder Bite",
+                "ends_at",
+            ),
+            (
+                account.lab_potion,
+                record.get("Home Village", {}).get("Lab", {}).get("lab_potion"),
+                "Lab Potion",
+                "ends_at",
+            ),
+            (
+                account.study_soup,
+                record.get("Home Village", {}).get("Lab", {}).get("study_soup"),
+                "Study Soup",
+                "ends_at",
+            ),
+            (
+                account.pet_potion,
+                record.get("Home Village", {}).get("Pet", {}).get("pet_potion"),
+                "Pet Potion",
+                "ends_at",
+            ),
+            (
+                account.clock_tower,
+                record.get("Builder Base", {}).get("clock_tower"),
+                "Clock Tower",
+                "ends_at",
+            ),
+            (
+                account.clock_tower,
+                record.get("Builder Base", {}).get("clock_tower"),
+                "Clock Tower recharge",
+                "recharge_ends_at",
+            ),
+        )
+        for helper, helper_record, helper_name, end_field in helper_records:
+            cooldown = (
+                helper.recharge_cooldown
+                if end_field == "recharge_ends_at"
+                else helper.cooldown
+            )
+            if cooldown <= 0:
+                continue
+            if not isinstance(helper_record, dict):
+                return 0
+            saved_end = helper_record.get(end_field)
+            if saved_end is None:
+                return 0
+            saved_end = _validated_end_timestamp(
+                saved_end, helper_name, account.name
+            )
+            drifts.append(now + cooldown - saved_end)
+
+    if not drifts:
+        return 0
+    minimum_drift = min(drifts)
+    if minimum_drift <= 3:
+        return 0
+
+    elapsed_seconds = math.floor(minimum_drift)
+    if elapsed_seconds <= 0:
+        return 0
+    for account in accounts:
+        _simulate_elapsed(account, elapsed_seconds)
+    return elapsed_seconds
+
+
+def _serialize_timer(timer: Timer, saved_at: float) -> dict:
+    return {
+        "name": timer.name,
+        "value": max(0, timer.value),
+        "ends_at": saved_at + max(0, timer.actual_time_left),
+    }
 
 
 def _serialize_assistant(
     assistant: Assistant,
     category_timers: List[Timer],
+    saved_at: float,
 ) -> dict:
+    cooldown = max(0, assistant.cooldown)
     record = {
         "active": assistant.active,
         "assigned": assistant.assigned,
-        "cooldown": max(0, assistant.cooldown),
+        "cooldown": cooldown,
+        "ends_at": saved_at + cooldown,
         "multiplier": assistant.multiplier,
     }
     if assistant.assigned_timer is not None:
@@ -666,16 +954,24 @@ def _serialize_assistant(
     return record
 
 
-def _serialize_timed_boost(boost: TimedBoost) -> dict:
-    return {"active": boost.active, "cooldown": max(0, boost.cooldown)}
+def _serialize_timed_boost(boost: TimedBoost, saved_at: float) -> dict:
+    cooldown = max(0, boost.cooldown)
+    return {
+        "active": boost.active,
+        "cooldown": cooldown,
+        "ends_at": saved_at + cooldown,
+    }
 
 
 def save_accounts(
     accounts: List[Account],
     file_path: Optional[Union[str, Path]] = None,
+    settings: Optional[AppSettings] = None,
 ) -> None:
-    """Persist countdown durations and a Unix timestamp for offline catch-up."""
+    """Persist countdowns, application settings, and offline catch-up data."""
     path = Path(file_path) if file_path is not None else _default_data_path()
+    if settings is None:
+        settings = load_settings(path)
     now = time.time()
     records = []
     for account in accounts:
@@ -711,42 +1007,56 @@ def save_accounts(
             "Home Village": {
                 "Building": {
                     "timers": [
-                        _serialize_timer(timer) for timer in home_building
+                        _serialize_timer(timer, now) for timer in home_building
                     ],
                     "builder_apprentice": _serialize_assistant(
-                        account.builder_apprentice, home_building
+                        account.builder_apprentice, home_building, now
                     ),
                     "builder_potion": _serialize_timed_boost(
-                        account.builder_potion
+                        account.builder_potion, now
                     ),
-                    "builder_bite": _serialize_timed_boost(account.builder_bite),
+                    "builder_bite": _serialize_timed_boost(
+                        account.builder_bite, now
+                    ),
                 },
                 "Lab": {
-                    "timers": [_serialize_timer(timer) for timer in home_lab],
+                    "timers": [_serialize_timer(timer, now) for timer in home_lab],
                     "lab_assistant": _serialize_assistant(
-                        account.lab_assistant, home_lab
+                        account.lab_assistant, home_lab, now
                     ),
-                    "lab_potion": _serialize_timed_boost(account.lab_potion),
-                    "study_soup": _serialize_timed_boost(account.study_soup),
+                    "lab_potion": _serialize_timed_boost(
+                        account.lab_potion, now
+                    ),
+                    "study_soup": _serialize_timed_boost(
+                        account.study_soup, now
+                    ),
                 },
                 "Pet": {
-                    "timers": [_serialize_timer(timer) for timer in home_pet],
-                    "pet_potion": _serialize_timed_boost(account.pet_potion),
+                    "timers": [_serialize_timer(timer, now) for timer in home_pet],
+                    "pet_potion": _serialize_timed_boost(
+                        account.pet_potion, now
+                    ),
                 },
             },
             "Builder Base": {
                 "clock_tower": {
                     "active": account.clock_tower.active,
                     "cooldown": max(0, account.clock_tower.cooldown),
+                    "ends_at": now + max(0, account.clock_tower.cooldown),
+                    "recharge_cooldown": max(
+                        0, account.clock_tower.recharge_cooldown
+                    ),
+                    "recharge_ends_at": now
+                    + max(0, account.clock_tower.recharge_cooldown),
                     "active_cooldown_minutes": account.clock_tower.active_cooldown_minutes,
                 },
                 "Building": {
                     "timers": [
-                        _serialize_timer(timer) for timer in builder_building
+                        _serialize_timer(timer, now) for timer in builder_building
                     ]
                 },
                 "Lab": {
-                    "timers": [_serialize_timer(timer) for timer in builder_lab]
+                    "timers": [_serialize_timer(timer, now) for timer in builder_lab]
                 },
             },
         }
@@ -765,7 +1075,18 @@ def save_accounts(
             delete=False,
         ) as data_file:
             temporary_path = Path(data_file.name)
-            json.dump(records, data_file, indent=2, ensure_ascii=False)
+            json.dump(
+                {
+                    "accounts": records,
+                    "settings": {
+                        "low_power_mode": settings.low_power_mode,
+                        "dark_mode": settings.dark_mode,
+                    },
+                },
+                data_file,
+                indent=2,
+                ensure_ascii=False,
+            )
             data_file.write("\n")
         os.replace(temporary_path, path)
     finally:

@@ -7,7 +7,13 @@ from typing import Any, List, Optional, Tuple
 
 from app_behavior import TimerMouseControls, TimerUpdateController
 from assets import Account, ClockTower, Helper, Timer
-from data import load_accounts, load_accounts_from_records, save_accounts
+from data import (
+    AppSettings,
+    load_accounts,
+    load_accounts_from_records,
+    load_settings,
+    save_accounts,
+)
 from data_translation import extract_timers_from_json
 from global_features import GlobalFeatures
 from timer_behavior import BuilderBaseControl, HomeVillageControl
@@ -24,44 +30,191 @@ class TimerTreeView(ttk.Frame):
         self.rowconfigure(0, weight=1)
         self.tree = ttk.Treeview(
             self,
-            columns=("actual_time_left", "remaining", "ends_at", "resources"),
+            columns=("actual_time_left", "remaining", "ends_at"),
             show="tree headings",
             style="Timers.Treeview",
         )
+        self._assigned_timer_image = tk.PhotoImage(
+            master=self.tree, width=16, height=16
+        )
+        self._unassigned_timer_image = tk.PhotoImage(
+            master=self.tree, width=16, height=16
+        )
+        self._draw_assigned_timer_icon()
         self.tree.heading("#0", text="ACCOUNT / TIMER", anchor="w")
         self.tree.heading("actual_time_left", text="ACTUAL TIME LEFT", anchor="e")
-        self.tree.heading("remaining", text="TIME LEFT / COOLDOWN", anchor="e")
-        self.tree.heading("ends_at", text="ENDS AT", anchor="w")
-        self.tree.heading("resources", text="RESOURCES", anchor="w")
-        self.tree.column("#0", anchor="w", stretch=True, minwidth=200)
+        self.tree.heading("remaining", text="TIME LEFT", anchor="e")
+        self.tree.heading("ends_at", text="ENDS AT", anchor="e")
+        self.tree.column(
+            "#0", anchor="w", width=200, minwidth=100, stretch=True
+        )
         self.tree.column("actual_time_left", anchor="e", width=145, stretch=False)
-        self.tree.column("remaining", anchor="e", width=150, stretch=False)
-        self.tree.column("ends_at", anchor="w", width=125, stretch=False)
-        self.tree.column("resources", anchor="w", width=110, stretch=False)
+        self.tree.column("remaining", anchor="e", width=145, stretch=False)
+        self.tree.column("ends_at", anchor="e", width=125, stretch=False)
+        scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=scrollbar.set)
+        self.tree.grid(row=0, column=0, sticky="nsew")
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        self._configure_tags()
+
+    def _draw_assigned_timer_icon(self) -> None:
+        color = "#2563eb"
+        for x in range(2, 10):
+            for y in range(6, 8):
+                self._assigned_timer_image.put(color, to=(x, y))
+        for step in range(5):
+            x = 8 + step
+            for thickness in (0, 1):
+                self._assigned_timer_image.put(
+                    color, to=(x, 3 + step + thickness)
+                )
+                self._assigned_timer_image.put(
+                    color, to=(x, 11 - step - thickness)
+                )
+
+    def timer_image(self, timer: Timer) -> tk.PhotoImage:
+        for account in self.app.accounts:
+            for assistant in (
+                account.builder_apprentice,
+                account.lab_assistant,
+            ):
+                if assistant.assigned and assistant.assigned_timer is timer:
+                    return self._assigned_timer_image
+        return self._unassigned_timer_image
+
+    def _configure_styles(self) -> None:
+        style = ttk.Style(self)
+        if "clam" in style.theme_names() and style.theme_use() != "clam":
+            style.theme_use("clam")
+
+        dark_mode = self.app.dark_mode
+        app_background = "#24292f" if dark_mode else "#f3f5f9"
+        surface_background = "#2d333b" if dark_mode else "#ffffff"
+        foreground = "#f0f3f6" if dark_mode else "#1c2538"
+        muted_foreground = "#c2c8d0" if dark_mode else "#69758a"
+        control_background = "#3b424a" if dark_mode else "#ffffff"
+        control_active_background = "#454d56" if dark_mode else "#f0f2f7"
+        style.configure("App.TFrame", background=app_background)
+        style.configure("Surface.TFrame", background=surface_background)
+        style.configure("Settings.TFrame", background=app_background)
+        style.configure(
+            "App.TButton",
+            background=control_background,
+            foreground=foreground,
+        )
+        style.configure(
+            "App.TMenubutton",
+            background=control_background,
+            foreground=foreground,
+        )
+        style.map(
+            "App.TButton",
+            background=[
+                ("active", control_active_background),
+                ("pressed", control_active_background),
+            ],
+            foreground=[("disabled", muted_foreground)],
+        )
+        style.map(
+            "App.TMenubutton",
+            background=[
+                ("active", control_active_background),
+                ("pressed", control_active_background),
+            ],
+        )
+        style.configure(
+            "Settings.TLabel",
+            background=app_background,
+            foreground=foreground,
+        )
+        style.configure(
+            "Title.TLabel",
+            background=app_background,
+            foreground=foreground,
+            font=("Segoe UI", 20, "bold"),
+        )
+        style.configure(
+            "Subtitle.TLabel",
+            background=app_background,
+            foreground=muted_foreground,
+            font=("Segoe UI", 10),
+        )
+        style.configure(
+            "Summary.TLabel",
+            background=app_background,
+            foreground=muted_foreground,
+            font=("Segoe UI", 9),
+        )
+        style.configure(
+            "Timers.Treeview",
+            background=surface_background,
+            fieldbackground=surface_background,
+            foreground="#f0f3f6" if dark_mode else "#364158",
+            font=("Segoe UI", 10),
+            rowheight=34,
+            borderwidth=0,
+        )
+        style.configure(
+            "Timers.Treeview.Heading",
+            background="#3b424a" if dark_mode else "#f7f8fb",
+            foreground="#d0d7de" if dark_mode else "#7a8497",
+            font=("Segoe UI", 8, "bold"),
+            padding=(12, 10),
+            relief="flat",
+        )
+        style.map(
+            "Timers.Treeview",
+            background=[("selected", "#4b5563" if dark_mode else "#e7ebfa")],
+            foreground=[("selected", "#ffffff" if dark_mode else "#26365f")],
+        )
+        style.map(
+            "Timers.Treeview.Heading",
+            background=[
+                ("active", "#454d56" if dark_mode else "#f0f2f7")
+            ],
+        )
+
+    def _configure_tags(self) -> None:
+        dark_mode = self.app.dark_mode
+        default_foreground = "#f0f3f6" if dark_mode else "#34405c"
+        muted_foreground = "#d0d7de" if dark_mode else "#69758a"
         self.tree.tag_configure(
-            "account", font=("Segoe UI", 10, "bold"), foreground="#34405c"
+            "account", font=("Segoe UI", 10, "bold"), foreground=default_foreground
         )
         self.tree.tag_configure(
-            "category", font=("Segoe UI", 9, "bold"), foreground="#69758a"
+            "category", font=("Segoe UI", 9, "bold"), foreground=muted_foreground
         )
         self.tree.tag_configure(
-            "apprentice", font=("Segoe UI", 9, "bold"), foreground="#4d5b78"
+            "apprentice",
+            font=("Segoe UI", 9, "bold"),
+            foreground="#d0d7de" if dark_mode else "#4d5b78",
         )
-        self.tree.tag_configure(
-            "timer_under_24h", foreground="#881337", background="#fff1f2"
+        timer_backgrounds = (
+            ("#4b3638", "#65373a", "#823438", "#a52f35", "#c92830")
+            if dark_mode
+            else ("#fff1f2", "#ffe4e6", "#fecdd3", "#fda4af", "#fb7185")
         )
-        self.tree.tag_configure(
-            "timer_under_6h", foreground="#881337", background="#ffe4e6"
+        timer_foregrounds = (
+            ("#ffffff",) * 5
+            if dark_mode
+            else ("#881337", "#881337", "#881337", "#4c0519", "#4c0519")
         )
-        self.tree.tag_configure(
-            "timer_under_1h", foreground="#881337", background="#fecdd3"
-        )
-        self.tree.tag_configure(
-            "timer_under_15m", foreground="#4c0519", background="#fda4af"
-        )
-        self.tree.tag_configure(
-            "timer_under_5m", foreground="#4c0519", background="#fb7185"
-        )
+        for tag, background, foreground in zip(
+            (
+                "timer_under_24h",
+                "timer_under_6h",
+                "timer_under_1h",
+                "timer_under_15m",
+                "timer_under_5m",
+            ),
+            timer_backgrounds,
+            timer_foregrounds,
+        ):
+            self.tree.tag_configure(
+                tag,
+                foreground=foreground,
+                background=background,
+            )
         self.tree.tag_configure(
             "timer_complete", foreground="#ffffff", background="#dc2626"
         )
@@ -75,98 +228,37 @@ class TimerTreeView(ttk.Frame):
             foreground="#713f12",
             background="#fef08a",
         )
-        self.tree.tag_configure(
-            "timer_summary_under_24h",
-            font=("Segoe UI", 9, "bold"),
-            foreground="#111827",
-            background="#fff1f2",
+        summary_backgrounds = (
+            ("#4b3638", "#65373a", "#823438", "#a52f35", "#c92830")
+            if dark_mode
+            else ("#fff1f2", "#ffe4e6", "#fecdd3", "#fda4af", "#fb7185")
         )
-        self.tree.tag_configure(
-            "timer_summary_under_6h",
-            font=("Segoe UI", 9, "bold"),
-            foreground="#111827",
-            background="#ffe4e6",
-        )
-        self.tree.tag_configure(
-            "timer_summary_under_1h",
-            font=("Segoe UI", 9, "bold"),
-            foreground="#111827",
-            background="#fecdd3",
-        )
-        self.tree.tag_configure(
-            "timer_summary_under_15m",
-            font=("Segoe UI", 9, "bold"),
-            foreground="#111827",
-            background="#fda4af",
-        )
-        self.tree.tag_configure(
-            "timer_summary_under_5m",
-            font=("Segoe UI", 9, "bold"),
-            foreground="#111827",
-            background="#fb7185",
-        )
+        for tag, background in zip(
+            (
+                "timer_summary_under_24h",
+                "timer_summary_under_6h",
+                "timer_summary_under_1h",
+                "timer_summary_under_15m",
+                "timer_summary_under_5m",
+            ),
+            summary_backgrounds,
+        ):
+            self.tree.tag_configure(
+                tag,
+                font=("Segoe UI", 9, "bold"),
+                foreground="#ffffff" if dark_mode else "#111827",
+                background=background,
+            )
         self.tree.tag_configure(
             "timer_summary_complete",
             font=("Segoe UI", 9, "bold"),
             foreground="#ffffff",
             background="#b91c1c",
         )
-        scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=scrollbar.set)
-        self.tree.grid(row=0, column=0, sticky="nsew")
-        scrollbar.grid(row=0, column=1, sticky="ns")
 
-    def _configure_styles(self) -> None:
-        style = ttk.Style(self)
-        if "clam" in style.theme_names():
-            style.theme_use("clam")
-
-        style.configure("App.TFrame", background="#f3f5f9")
-        style.configure("Surface.TFrame", background="#ffffff")
-        style.configure(
-            "Title.TLabel",
-            background="#f3f5f9",
-            foreground="#1c2538",
-            font=("Segoe UI", 20, "bold"),
-        )
-        style.configure(
-            "Subtitle.TLabel",
-            background="#f3f5f9",
-            foreground="#69758a",
-            font=("Segoe UI", 10),
-        )
-        style.configure(
-            "Summary.TLabel",
-            background="#f3f5f9",
-            foreground="#69758a",
-            font=("Segoe UI", 9),
-        )
-        style.configure(
-            "Timers.Treeview",
-            background="#ffffff",
-            fieldbackground="#ffffff",
-            foreground="#364158",
-            font=("Segoe UI", 10),
-            rowheight=34,
-            borderwidth=0,
-        )
-        style.configure(
-            "Timers.Treeview.Heading",
-            background="#f7f8fb",
-            foreground="#7a8497",
-            font=("Segoe UI", 8, "bold"),
-            padding=(12, 10),
-            relief="flat",
-        )
-        style.map(
-            "Timers.Treeview",
-            background=[("selected", "#e7ebfa")],
-            foreground=[("selected", "#26365f")],
-        )
-        style.map(
-            "Timers.Treeview.Heading",
-            background=[("active", "#f0f2f7")],
-        )
+    def refresh_theme(self) -> None:
+        self._configure_styles()
+        self._configure_tags()
 
     def add_timer_row(self, parent_id: str, timer: Timer) -> None:
         app = self.app
@@ -176,6 +268,7 @@ class TimerTreeView(ttk.Frame):
             parent_id,
             "end",
             text=timer.name,
+            image=self.timer_image(timer),
             values=self.timer_values(timer, end_time, seconds_until_done),
             tags=self.timer_tags(seconds_until_done),
         )
@@ -266,6 +359,43 @@ class TimerTreeView(ttk.Frame):
         if item_id is not None:
             self.tree.delete(item_id)
 
+    def show_clock_tower_cooldown_row(
+        self, parent_id: str, clock_tower: ClockTower
+    ) -> None:
+        item_id = self.app._clock_tower_cooldown_rows.get(id(clock_tower))
+        if item_id is None:
+            item_id = self.tree.insert(
+                parent_id,
+                0,
+                text="Clock Tower cooldown",
+                values=self.cooldown_values(clock_tower.recharge_cooldown),
+                tags=("apprentice",),
+            )
+            self.app._clock_tower_cooldown_rows[id(clock_tower)] = item_id
+        else:
+            self.refresh_clock_tower_cooldown_row(clock_tower)
+
+    def refresh_clock_tower_cooldown_row(self, clock_tower: ClockTower) -> None:
+        item_id = self.app._clock_tower_cooldown_rows.get(id(clock_tower))
+        if item_id is None:
+            return
+        if clock_tower.recharge_cooldown <= 0:
+            self.tree.delete(item_id)
+            del self.app._clock_tower_cooldown_rows[id(clock_tower)]
+            return
+        self.tree.item(
+            item_id,
+            values=self.cooldown_values(clock_tower.recharge_cooldown),
+        )
+
+    def cooldown_values(self, seconds: int) -> Tuple[str, str, str]:
+        ends_at = ""
+        if seconds > 0:
+            ends_at = self.format_end_at(
+                datetime.now() + timedelta(seconds=seconds)
+            )
+        return "", self.format_time(seconds), ends_at
+
     @staticmethod
     def format_time(seconds: int) -> str:
         days, remainder = divmod(seconds, 24 * 60 * 60)
@@ -283,7 +413,7 @@ class TimerTreeView(ttk.Frame):
         timer: Timer,
         end_time: Optional[datetime] = None,
         actual_time_left: Optional[int] = None,
-    ) -> Tuple[str, str, str, str]:
+    ) -> Tuple[str, str, str]:
         if actual_time_left is None:
             actual_time_left = timer.actual_time_left
         if end_time is None:
@@ -292,7 +422,6 @@ class TimerTreeView(ttk.Frame):
             self.format_time(actual_time_left),
             self.format_time(timer.value),
             self.format_end_at(end_time),
-            "",
         )
 
     @staticmethod
@@ -313,13 +442,8 @@ class TimerTreeView(ttk.Frame):
         status = "Active" if potion.active else "Inactive"
         return f"{potion_name} ({status}, {potion.multiplier}x)"
 
-    def assistant_values(self, assistant: Any) -> Tuple[str, str, str, str]:
-        return (
-            "",
-            self.format_time(assistant.cooldown),
-            "",
-            "",
-        )
+    def assistant_values(self, assistant: Any) -> Tuple[str, str, str]:
+        return self.cooldown_values(assistant.cooldown)
 
 
 class TimerApp(ttk.Frame):
@@ -333,7 +457,9 @@ class TimerApp(ttk.Frame):
     ) -> None:
         super().__init__(master, **kwargs)
         self.accounts = load_accounts() if accounts is None else accounts
-        self.low_power_mode = False
+        settings = load_settings()
+        self.low_power_mode = settings.low_power_mode
+        self.dark_mode = settings.dark_mode
         self._save_error_shown = False
         self._save_after_id: Optional[str] = None
         self._account_rows: dict[int, str] = {}
@@ -347,6 +473,7 @@ class TimerApp(ttk.Frame):
         self._timer_list_categories: dict[str, Tuple[Account, str, str]] = {}
         self._village_rows: dict[Tuple[int, str], str] = {}
         self._potion_rows: dict[int, str] = {}
+        self._clock_tower_cooldown_rows: dict[int, str] = {}
         self._updates = TimerUpdateController(self)
         self._mouse_controls = TimerMouseControls(self)
 
@@ -362,6 +489,7 @@ class TimerApp(ttk.Frame):
         self.timer_view = TimerTreeView(self, self)
         self.timer_view.grid(row=1, column=0, sticky="nsew")
         self.tree = self.timer_view.tree
+        self.set_dark_mode(self.dark_mode)
 
         footer = ttk.Frame(self, style="App.TFrame")
         footer.grid(row=2, column=0, sticky="ew", pady=(12, 0))
@@ -387,9 +515,23 @@ class TimerApp(ttk.Frame):
         self.low_power_mode = enabled
         self._updates.refresh_display()
 
+    def set_dark_mode(self, enabled: bool) -> None:
+        self.dark_mode = enabled
+        self.winfo_toplevel().configure(
+            background="#24292f" if enabled else "#f3f5f9"
+        )
+        self.timer_view.refresh_theme()
+        self.global_features.set_dark_mode(enabled)
+
     def persist_accounts(self) -> None:
         try:
-            save_accounts(self.accounts)
+            save_accounts(
+                self.accounts,
+                settings=AppSettings(
+                    low_power_mode=self.low_power_mode,
+                    dark_mode=self.dark_mode,
+                ),
+            )
         except OSError as error:
             if not self._save_error_shown:
                 messagebox.showerror(
@@ -514,7 +656,13 @@ class TimerApp(ttk.Frame):
         account_index = self.accounts.index(account)
         updated_accounts = list(self.accounts)
         updated_accounts[account_index] = replacement
-        save_accounts(updated_accounts)
+        save_accounts(
+            updated_accounts,
+            settings=AppSettings(
+                low_power_mode=self.low_power_mode,
+                dark_mode=self.dark_mode,
+            ),
+        )
 
         self.remove_account(account)
         self.accounts.insert(account_index, replacement)
@@ -600,6 +748,7 @@ class TimerApp(ttk.Frame):
             account.pet_potion,
         ):
             self._potion_rows.pop(id(potion), None)
+        self._clock_tower_cooldown_rows.pop(id(account.clock_tower), None)
         self.accounts.remove(account)
         self._updates.refresh_collapsed_summaries()
         self._updates.update_summary()
@@ -608,7 +757,7 @@ def main() -> None:
     root = tk.Tk()
     root.title("Account Timers")
     root.geometry("1000x500")
-    root.minsize(900, 360)
+    root.minsize(600, 360)
     root.configure(background="#f3f5f9")
 
     app = TimerApp(root)

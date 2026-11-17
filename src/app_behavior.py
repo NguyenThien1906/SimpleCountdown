@@ -4,6 +4,7 @@ import ctypes
 from ctypes import wintypes
 from datetime import datetime, timedelta
 import sys
+import time
 import tkinter as tk
 from tkinter import messagebox
 from typing import Any, List, Optional, Tuple
@@ -739,6 +740,7 @@ class TimerMouseControls:
         overview = self.overview
         timer.name = name
         timer.value = remaining
+        timer.end_at = time.time() + max(0, remaining)
         timer.recalculate_actual_time_left()
         overview._end_times[timer_id] = datetime.now() + timedelta(
             seconds=timer.actual_time_left

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+import time
 from typing import ClassVar, Optional
 
 VILLAGES = ("Home Village", "Builder Base")
@@ -24,9 +25,11 @@ class Timer:
         default=None, init=False, repr=False, compare=False
     )
     actual_time_left: int = field(init=False, compare=False)
+    end_at: float = field(init=False, compare=False)
 
     def __post_init__(self) -> None:
         self.actual_time_left = self.value
+        self.end_at = time.time() + max(0, self.value)
 
     @property
     def rate(self) -> int:
@@ -34,7 +37,8 @@ class Timer:
 
     def advance(self) -> None:
         if self.value > 0:
-            self.value = max(0, self.value - self.rate)
+            rate = self.rate
+            self.value = max(0, self.value - rate)
             self.actual_time_left = max(0, self.actual_time_left - 1)
 
     def sync_helper(

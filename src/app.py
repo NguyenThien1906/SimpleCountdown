@@ -595,6 +595,8 @@ class TimerApp(ttk.Frame):
             account.pet_potion,
         ):
             self._updates.sync_helper_timers(account, helper)
+        for timer in account.timers:
+            timer.recalculate_actual_time_left()
         account_id = self.tree.insert(
             "", "end", text=account.name, open=True, tags=("account",)
         )

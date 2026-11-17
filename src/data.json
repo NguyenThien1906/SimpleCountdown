@@ -1,120 +1,114 @@
 {
   "accounts": [
     {
-      "name": "Main account",
-      "saved_at": 1794852191.684732,
+      "name": "N",
+      "saved_at": 1794908230.762608,
       "Home Village": {
         "Building": {
           "timers": [
             {
-              "name": "Gold Storage",
-              "value": 0,
-              "ends_at": 1794852191.684732
+              "name": "Laboratory",
+              "end_at": 1796134845
             },
             {
-              "name": "Elixir Storage",
-              "value": 28621,
-              "ends_at": 1794880812.684732
+              "name": "Dark Elixir Storage",
+              "end_at": 1795310556
             },
             {
-              "name": "Elixir Storage",
-              "value": 28625,
-              "ends_at": 1794880816.684732
+              "name": "Scattershot",
+              "end_at": 1795311287
             },
             {
-              "name": "Ricochet Cannon",
-              "value": 123317,
-              "ends_at": 1794975508.684732
+              "name": "Scattershot",
+              "end_at": 1795289937
             },
             {
-              "name": "Multi-Gear Tower",
-              "value": 266005,
-              "ends_at": 1795074996.684732
+              "name": "Squad Barracks",
+              "end_at": 1795005620
+            },
+            {
+              "name": "Logger",
+              "end_at": 1795146610
             }
           ],
           "builder_apprentice": {
             "active": false,
             "assigned": true,
-            "cooldown": 73603,
-            "ends_at": 1794925794.684732,
-            "multiplier": 6,
+            "ends_at": 1794944334.762608,
+            "multiplier": 3,
             "assigned_timer": {
-              "index": 4,
-              "name": "Multi-Gear Tower"
+              "index": 3,
+              "name": "Scattershot"
             }
           },
           "builder_potion": {
             "active": false,
-            "cooldown": 0,
-            "ends_at": 1794852191.684732
+            "ends_at": 1794908230.762608
           },
           "builder_bite": {
             "active": false,
-            "cooldown": 0,
-            "ends_at": 1794852191.684732
+            "ends_at": 1794908230.762608
           }
         },
         "Lab": {
           "timers": [
             {
-              "name": "Thrower Research",
-              "value": 230198,
-              "ends_at": 1795082389.684732
+              "name": "Revive Spell Research",
+              "end_at": 1795343995
             }
           ],
           "lab_assistant": {
             "active": false,
-            "assigned": false,
-            "cooldown": 0,
-            "ends_at": 1794852191.684732,
-            "multiplier": 1
+            "assigned": true,
+            "ends_at": 1794944334.762608,
+            "multiplier": 1,
+            "assigned_timer": {
+              "index": 0,
+              "name": "Revive Spell Research"
+            }
           },
           "lab_potion": {
             "active": false,
-            "cooldown": 0,
-            "ends_at": 1794852191.684732
+            "ends_at": 1794908230.762608
           },
           "study_soup": {
             "active": false,
-            "cooldown": 0,
-            "ends_at": 1794852191.684732
+            "ends_at": 1794908230.762608
           }
         },
         "Pet": {
           "timers": [
             {
-              "name": "Phoenix",
-              "value": 0,
-              "ends_at": 1794852191.684732
+              "name": "Sneezy",
+              "end_at": 1795145086
             }
           ],
           "pet_potion": {
             "active": false,
-            "cooldown": 0,
-            "ends_at": 1794852191.684732
+            "ends_at": 1794908230.762608
           }
         }
       },
       "Builder Base": {
         "clock_tower": {
           "active": false,
-          "cooldown": 0,
-          "ends_at": 1794852191.684732,
-          "recharge_cooldown": 24771,
-          "recharge_ends_at": 1794876962.684732,
-          "active_cooldown_minutes": 26
+          "ends_at": 1794908230.762608,
+          "recharge_ends_at": 1794925480.762608,
+          "active_cooldown_minutes": 32
         },
         "Building": {
           "timers": [
             {
-              "name": "Hidden Tesla",
-              "value": 0,
-              "ends_at": 1794852191.684732
+              "name": "Mine",
+              "end_at": 1794945075
             },
             {
-              "name": "Hidden Tesla",
-              "value": 0,
-              "ends_at": 1794852191.684732
+              "name": "Push Trap",
+              "end_at": 1794938823
+            },
+            {
+              "name": "Battle Copter",
+              "end_at": 1794950340
             }
           ]
         },
@@ -122,123 +116,117 @@
           "timers": []
         }
       },
-      "tag": "#9UVUJGQUY"
+      "tag": "#Y20QV9PLC"
     },
     {
-      "name": "435",
-      "saved_at": 1794852191.684732,
+      "name": "N (check)",
+      "saved_at": 1794908230.762608,
       "Home Village": {
         "Building": {
           "timers": [
             {
-              "name": "Gold Storage",
-              "value": 0,
-              "ends_at": 1794852191.684732
+              "name": "Laboratory",
+              "end_at": 1796134845
             },
             {
-              "name": "Elixir Storage",
-              "value": 0,
-              "ends_at": 1794852191.684732
+              "name": "Dark Elixir Storage",
+              "end_at": 1795310556
             },
             {
-              "name": "Elixir Storage",
-              "value": 0,
-              "ends_at": 1794852191.684732
+              "name": "Scattershot",
+              "end_at": 1795311287
             },
             {
-              "name": "Ricochet Cannon",
-              "value": 89791,
-              "ends_at": 1794941982.684732
+              "name": "Scattershot",
+              "end_at": 1795289937
             },
             {
-              "name": "Multi-Gear Tower",
-              "value": 232479,
-              "ends_at": 1795041470.684732
+              "name": "Squad Barracks",
+              "end_at": 1795005620
+            },
+            {
+              "name": "Logger",
+              "end_at": 1795146610
             }
           ],
           "builder_apprentice": {
             "active": false,
             "assigned": true,
-            "cooldown": 40077,
-            "ends_at": 1794892268.684732,
-            "multiplier": 6,
+            "ends_at": 1794944334.762608,
+            "multiplier": 3,
             "assigned_timer": {
-              "index": 4,
-              "name": "Multi-Gear Tower"
+              "index": 3,
+              "name": "Scattershot"
             }
           },
           "builder_potion": {
             "active": false,
-            "cooldown": 0,
-            "ends_at": 1794852191.684732
+            "ends_at": 1794908230.762608
           },
           "builder_bite": {
             "active": false,
-            "cooldown": 0,
-            "ends_at": 1794852191.684732
+            "ends_at": 1794908230.762608
           }
         },
         "Lab": {
           "timers": [
             {
-              "name": "Thrower Research",
-              "value": 196672,
-              "ends_at": 1795048863.684732
+              "name": "Revive Spell Research",
+              "end_at": 1795343995
             }
           ],
           "lab_assistant": {
             "active": false,
-            "assigned": false,
-            "cooldown": 0,
-            "ends_at": 1794852191.684732,
-            "multiplier": 1
+            "assigned": true,
+            "ends_at": 1794944334.762608,
+            "multiplier": 1,
+            "assigned_timer": {
+              "index": 0,
+              "name": "Revive Spell Research"
+            }
           },
           "lab_potion": {
             "active": false,
-            "cooldown": 0,
-            "ends_at": 1794852191.684732
+            "ends_at": 1794908230.762608
           },
           "study_soup": {
             "active": false,
-            "cooldown": 0,
-            "ends_at": 1794852191.684732
+            "ends_at": 1794908230.762608
           }
         },
         "Pet": {
           "timers": [
             {
-              "name": "Phoenix",
-              "value": 0,
-              "ends_at": 1794852191.684732
+              "name": "Sneezy",
+              "end_at": 1795145086
             }
           ],
           "pet_potion": {
             "active": false,
-            "cooldown": 0,
-            "ends_at": 1794852191.684732
+            "ends_at": 1794908230.762608
           }
         }
       },
       "Builder Base": {
         "clock_tower": {
           "active": false,
-          "cooldown": 0,
-          "ends_at": 1794852191.684732,
-          "recharge_cooldown": 0,
-          "recharge_ends_at": 1794852191.684732,
-          "active_cooldown_minutes": 26
+          "ends_at": 1794908230.762608,
+          "recharge_ends_at": 1794925480.762608,
+          "active_cooldown_minutes": 32
         },
         "Building": {
           "timers": [
             {
-              "name": "Hidden Tesla",
-              "value": 0,
-              "ends_at": 1794852191.684732
+              "name": "Mine",
+              "end_at": 1794945075
             },
             {
-              "name": "Hidden Tesla",
-              "value": 0,
-              "ends_at": 1794852191.684732
+              "name": "Push Trap",
+              "end_at": 1794938823
+            },
+            {
+              "name": "Battle Copter",
+              "end_at": 1794950340
             }
           ]
         },
@@ -246,11 +234,11 @@
           "timers": []
         }
       },
-      "tag": "#9UVUJGQUY"
+      "tag": "#Y20QV9PLC"
     }
   ],
   "settings": {
-    "low_power_mode": true,
+    "low_power_mode": false,
     "dark_mode": true
   }
 }

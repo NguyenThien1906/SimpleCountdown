@@ -136,8 +136,9 @@ def _timer_records(
     village_data: Dict[str, Any],
     record_groups: Tuple[str, ...],
     category: str,
-) -> List[Dict[str, Union[str, int]]]:
-    timers: List[Dict[str, Union[str, int]]] = []
+    exported_at: int,
+) -> List[Dict[str, Union[str, int, float]]]:
+    timers: List[Dict[str, Union[str, int, float]]] = []
     for group in record_groups:
         records = village_data.get(group, [])
         if not isinstance(records, list):
@@ -164,7 +165,7 @@ def _timer_records(
                 )
             if category == "Lab":
                 name = f"{name} Research"
-            timers.append({"name": name, "value": seconds})
+            timers.append({"name": name, "end_at": exported_at + seconds})
     return timers
 
 
@@ -207,6 +208,7 @@ def _assistant_settings(
     village_data: Dict[str, Any],
     helper_id: int,
     assigned_timer: Optional[Dict[str, Any]],
+    exported_at: int,
 ) -> Dict[str, Any]:
     records = village_data.get("helpers", [])
     if not isinstance(records, list):
@@ -223,7 +225,7 @@ def _assistant_settings(
         return {
             "active": False,
             "assigned": False,
-            "cooldown": 0,
+            "ends_at": exported_at,
             "multiplier": 1,
         }
 
@@ -238,7 +240,7 @@ def _assistant_settings(
     return {
         "active": 0 < cooldown <= 60 * 60,
         "assigned": assigned_timer is not None,
-        "cooldown": cooldown,
+        "ends_at": exported_at + cooldown,
         "multiplier": level,
         **({"assigned_timer": assigned_timer} if assigned_timer is not None else {}),
     }
@@ -247,7 +249,7 @@ def _assistant_settings(
 def extract_timers(
     file_path: Union[str, Path] = "raw_village_data.json",
 ) -> List[Dict[str, Any]]:
-    """Convert village timers into duration-based data.json records."""
+    """Convert village timers into timestamp-based data.json records."""
     return extract_timers_from_data(_load_raw_village_data(file_path))
 
 
@@ -259,7 +261,7 @@ def extract_timers_from_json(raw_text: str) -> List[Dict[str, Any]]:
 def extract_timers_from_data(
     village_data: Dict[str, Any],
 ) -> List[Dict[str, Any]]:
-    """Convert parsed village data into duration-based account records."""
+    """Convert parsed village data into timestamp-based account records."""
     tag = village_data.get("tag")
     if not isinstance(tag, str) or not tag.strip():
         raise ValueError("The village export must contain a non-empty account tag.")
@@ -269,7 +271,7 @@ def extract_timers_from_data(
         raise ValueError("The village export must contain a non-negative integer timestamp.")
 
     groups = {
-        key: _timer_records(village_data, source_groups, key[1])
+        key: _timer_records(village_data, source_groups, key[1], exported_at)
         for key, source_groups in _TIMER_GROUPS.items()
     }
     assigned_timers = {
@@ -327,11 +329,15 @@ def extract_timers_from_data(
                         village_data,
                         _BUILDER_APPRENTICE_ID,
                         assigned_timers[_BUILDER_APPRENTICE_ID],
+                        exported_at,
                     ),
-                    "builder_potion": {"active": False, "cooldown": 0},
+                    "builder_potion": {
+                        "active": False,
+                        "ends_at": exported_at,
+                    },
                     "builder_bite": {
                         "active": builder_bite_duration > 0,
-                        "cooldown": builder_bite_duration,
+                        "ends_at": exported_at + builder_bite_duration,
                     },
                 },
                 "Lab": {
@@ -340,23 +346,27 @@ def extract_timers_from_data(
                         village_data,
                         _LAB_ASSISTANT_ID,
                         assigned_timers[_LAB_ASSISTANT_ID],
+                        exported_at,
                     ),
                     "lab_potion": {
                         "active": lab_boost > 0,
-                        "cooldown": lab_boost,
+                        "ends_at": exported_at + lab_boost,
                     },
-                    "study_soup": {"active": False, "cooldown": 0},
+                    "study_soup": {
+                        "active": False,
+                        "ends_at": exported_at,
+                    },
                 },
                 "Pet": {
                     "timers": groups[("Home Village", "Pet")],
-                    "pet_potion": {"active": False, "cooldown": 0},
+                    "pet_potion": {"active": False, "ends_at": exported_at},
                 },
             },
             "Builder Base": {
                 "clock_tower": {
                     "active": clock_tower_boost > 0,
-                    "cooldown": clock_tower_boost,
-                    "recharge_cooldown": clock_tower_cooldown,
+                    "ends_at": exported_at + clock_tower_boost,
+                    "recharge_ends_at": exported_at + clock_tower_cooldown,
                     "active_cooldown_minutes": 12 + 2 * clock_tower_level,
                 },
                 "Building": groups[("Builder Base", "Building")],

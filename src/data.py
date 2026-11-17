@@ -76,24 +76,18 @@ def _load_assistant(record: object, name: str, account_name: str):
 
     active = record.get("active", False)
     assigned = record.get("assigned", False)
-    cooldown = record.get("cooldown", 0)
     multiplier = record.get("multiplier", 1)
     if not isinstance(active, bool) or not isinstance(assigned, bool):
         raise ValueError(
             f"{name} active and assigned values for account {account_name!r} "
             "must be booleans."
         )
-    if isinstance(cooldown, bool) or not isinstance(cooldown, int) or cooldown < 0:
-        raise ValueError(
-            f"{name} cooldown for account {account_name!r} "
-            "must be a non-negative integer."
-        )
     if isinstance(multiplier, bool) or not isinstance(multiplier, int) or multiplier < 0:
         raise ValueError(
             f"{name} multiplier for account {account_name!r} "
             "must be a non-negative integer."
         )
-    return active, assigned, cooldown, multiplier
+    return active, assigned, multiplier
 
 
 def _remaining_seconds(
@@ -161,24 +155,20 @@ def _restore_helper_cooldown(
     helper_name: str,
     account_name: str,
     now: float,
-    elapsed_seconds: int,
+    saved_at: Optional[float],
     cycles_when_unassigned: bool = False,
 ) -> None:
     if "ends_at" not in record:
-        if isinstance(helper, Assistant) and helper.assigned:
-            _elapse_cycling_helper(helper, elapsed_seconds)
-        elif cycles_when_unassigned and helper.cooldown > 0:
-            _elapse_cycling_helper(helper, elapsed_seconds)
-        else:
-            helper.cooldown = max(0, helper.cooldown - elapsed_seconds)
+        helper.cooldown = 0
         return
 
     ends_at = record["ends_at"]
+    ends_at = _validated_end_timestamp(ends_at, helper_name, account_name)
     helper.cooldown = _remaining_seconds(
         ends_at, helper_name, account_name, now
     )
     if ends_at <= now:
-        if record.get("cooldown") == 0:
+        if saved_at is not None and ends_at <= saved_at:
             return
         if not cycles_when_unassigned and (
             not isinstance(helper, Assistant) or not helper.assigned
@@ -199,7 +189,7 @@ def _load_timed_boost(
     helper_type: Type[TimedBoost],
     account_name: str,
     now: float,
-    elapsed_seconds: int,
+    saved_at: Optional[float],
     cycles_when_unassigned: bool = False,
 ) -> TimedBoost:
     if not isinstance(record, dict):
@@ -213,20 +203,14 @@ def _load_timed_boost(
             f"{helper_name} active value for account {account_name!r} "
             "must be a boolean."
         )
-    cooldown = record.get("cooldown", 0)
-    if isinstance(cooldown, bool) or not isinstance(cooldown, int) or cooldown < 0:
-        raise ValueError(
-            f"{helper_name} cooldown for account {account_name!r} "
-            "must be a non-negative integer."
-        )
-    helper = helper_type(active=active, cooldown=cooldown)
+    helper = helper_type(active=active)
     _restore_helper_cooldown(
         helper,
         record,
         helper_name,
         account_name,
         now,
-        elapsed_seconds,
+        saved_at,
         cycles_when_unassigned,
     )
     if helper.cooldown == 0:
@@ -389,11 +373,6 @@ def load_accounts_from_records(records: object) -> List[Account]:
             raise ValueError(
                 f"Account {name!r} saved_at must be a non-negative timestamp."
             )
-        elapsed_seconds = 0
-        simulation_seconds = (
-            max(0, int(now - saved_at)) if saved_at is not None else 0
-        )
-
         exported_at = record.get("exported_at")
         if saved_at is None and exported_at is not None and (
             isinstance(exported_at, bool)
@@ -404,16 +383,20 @@ def load_accounts_from_records(records: object) -> List[Account]:
             raise ValueError(
                 f"Account {name!r} exported_at must be a non-negative timestamp."
             )
-        elif saved_at is None and exported_at is not None:
-            elapsed_seconds = max(0, int(now - exported_at))
-        helper_elapsed_seconds = elapsed_seconds if saved_at is None else 0
+
+        reference_time = saved_at if saved_at is not None else exported_at
+        simulation_seconds = (
+            max(0, int(now - reference_time))
+            if reference_time is not None
+            else 0
+        )
+        state_time = reference_time if reference_time is not None else now
 
         tag = record.get("tag")
         if tag is not None and not isinstance(tag, str):
             raise ValueError(f"Account {name!r} tag must be a string.")
 
         timers: List[Timer] = []
-        timer_end_times: List[Tuple[Timer, float]] = []
         builder_apprentice = BuilderApprentice()
         lab_assistant = LabAssistant()
         clock_tower = ClockTower()
@@ -434,29 +417,12 @@ def load_accounts_from_records(records: object) -> List[Account]:
                         f"Clock Tower data for account {name!r} must be an object."
                     )
                 active = tower_record.get("active", False)
-                cooldown = tower_record.get("cooldown", 0)
-                has_recharge_cooldown = "recharge_cooldown" in tower_record
-                recharge_cooldown = tower_record.get("recharge_cooldown", 0)
                 active_cooldown_minutes = tower_record.get(
                     "active_cooldown_minutes", 30
                 )
                 if not isinstance(active, bool):
                     raise ValueError(
                         f"Clock Tower active value for account {name!r} must be a boolean."
-                    )
-                if isinstance(cooldown, bool) or not isinstance(cooldown, int) or cooldown < 0:
-                    raise ValueError(
-                        f"Clock Tower cooldown for account {name!r} "
-                        "must be a non-negative integer."
-                    )
-                if (
-                    isinstance(recharge_cooldown, bool)
-                    or not isinstance(recharge_cooldown, int)
-                    or recharge_cooldown < 0
-                ):
-                    raise ValueError(
-                        f"Clock Tower recharge cooldown for account {name!r} "
-                        "must be a non-negative integer."
                     )
                 if (
                     isinstance(active_cooldown_minutes, bool)
@@ -467,25 +433,17 @@ def load_accounts_from_records(records: object) -> List[Account]:
                         f"Clock Tower active cooldown for account {name!r} "
                         "must be a non-negative integer."
                     )
-                if not has_recharge_cooldown:
-                    if active:
-                        recharge_cooldown = cooldown + 22 * 60 * 60
-                    else:
-                        recharge_cooldown = cooldown
-                        cooldown = 0
                 clock_tower = ClockTower(
                     active=active,
-                    cooldown=cooldown,
                     active_cooldown_minutes=active_cooldown_minutes,
-                    recharge_cooldown=recharge_cooldown,
                 )
                 _restore_helper_cooldown(
                     clock_tower,
                     tower_record,
                     "Clock Tower",
                     name,
-                    now,
-                    helper_elapsed_seconds,
+                    state_time,
+                    reference_time,
                 )
                 if clock_tower.cooldown == 0:
                     clock_tower.active = False
@@ -494,14 +452,11 @@ def load_accounts_from_records(records: object) -> List[Account]:
                         tower_record["recharge_ends_at"],
                         "Clock Tower recharge",
                         name,
-                        now,
+                        state_time,
                         "end time",
                     )
                 else:
-                    clock_tower.recharge_cooldown = max(
-                        0,
-                        clock_tower.recharge_cooldown - helper_elapsed_seconds,
-                    )
+                    clock_tower.recharge_cooldown = 0
 
             for category in SUBCATEGORIES[village]:
                 category_record = village_record.get(category)
@@ -523,16 +478,16 @@ def load_accounts_from_records(records: object) -> List[Account]:
                         "Builder Potion",
                         BuilderPotion,
                         name,
-                        now,
-                        helper_elapsed_seconds,
+                        state_time,
+                        reference_time,
                     )
                     builder_bite = _load_timed_boost(
                         category_record.get("builder_bite", {}),
                         "Builder Bite",
                         BuilderBite,
                         name,
-                        now,
-                        helper_elapsed_seconds,
+                        state_time,
+                        reference_time,
                     )
                 elif village == "Home Village" and category == "Lab":
                     helper_name = "Lab Assistant"
@@ -548,16 +503,16 @@ def load_accounts_from_records(records: object) -> List[Account]:
                         "Lab Potion",
                         LabPotion,
                         name,
-                        now,
-                        helper_elapsed_seconds,
+                        state_time,
+                        reference_time,
                     )
                     study_soup = _load_timed_boost(
                         category_record.get("study_soup", {}),
                         "Study Soup",
                         StudySoup,
                         name,
-                        now,
-                        helper_elapsed_seconds,
+                        state_time,
+                        reference_time,
                     )
                 elif village == "Home Village" and category == "Pet":
                     if isinstance(category_record, dict):
@@ -567,8 +522,8 @@ def load_accounts_from_records(records: object) -> List[Account]:
                             "Pet Potion",
                             PetPotion,
                             name,
-                            now,
-                            elapsed_seconds,
+                            state_time,
+                            reference_time,
                         )
                     else:
                         timer_records = category_record
@@ -579,11 +534,10 @@ def load_accounts_from_records(records: object) -> List[Account]:
 
                 if helper_name is not None and helper_type is not None:
                     values = _load_assistant(helper_record, helper_name, name)
-                    active, assigned, cooldown, multiplier = values
+                    active, assigned, multiplier = values
                     helper = helper_type(
                         active=active,
                         assigned=assigned,
-                        cooldown=cooldown,
                         multiplier=multiplier,
                     )
                     _restore_helper_cooldown(
@@ -591,8 +545,8 @@ def load_accounts_from_records(records: object) -> List[Account]:
                         helper_record,
                         helper_name,
                         name,
-                        now,
-                        helper_elapsed_seconds,
+                        state_time,
+                        reference_time,
                     )
                     assistant = helper
                     if helper_type is BuilderApprentice:
@@ -615,14 +569,15 @@ def load_accounts_from_records(records: object) -> List[Account]:
                         )
 
                     timer_name = timer_record.get("name")
-                    value = timer_record.get("value")
                     if not isinstance(timer_name, str) or not timer_name.strip():
                         raise ValueError(
                             f"Timer at index {timer_index} in {village!r} / "
                             f"{category} for account {name!r} must have a non-empty name."
                         )
-                    if "ends_at" in timer_record:
-                        ends_at = timer_record["ends_at"]
+                    if "end_at" in timer_record or "ends_at" in timer_record:
+                        ends_at = timer_record.get(
+                            "end_at", timer_record.get("ends_at")
+                        )
                         if (
                             isinstance(ends_at, bool)
                             or not isinstance(ends_at, (int, float))
@@ -634,35 +589,14 @@ def load_accounts_from_records(records: object) -> List[Account]:
                                 f"for account {name!r} must have a non-negative "
                                 "end timestamp."
                             )
-                        if saved_at is not None:
-                            if (
-                                isinstance(value, bool)
-                                or not isinstance(value, int)
-                                or value < 0
-                            ):
-                                raise ValueError(
-                                    f"Timer {timer_name!r} in {village!r} / "
-                                    f"{category} for account {name!r} must have "
-                                    "a non-negative integer value in seconds."
-                                )
-                            remaining = value
+                        if reference_time is not None:
+                            remaining = max(0, math.ceil(ends_at - reference_time))
                         else:
                             remaining = max(0, math.ceil(ends_at - now))
                     else:
-                        ends_at = None
-                        if (
-                            isinstance(value, bool)
-                            or not isinstance(value, int)
-                            or value < 0
-                        ):
-                            raise ValueError(
-                                f"Timer {timer_name!r} in {village!r} / {category} "
-                                f"for account {name!r} must have a non-negative "
-                                "integer value in seconds."
-                            )
-                        remaining = max(
-                            0,
-                            value - (elapsed_seconds if saved_at is None else 0),
+                        raise ValueError(
+                            f"Timer {timer_name!r} in {village!r} / {category} "
+                            f"for account {name!r} must have an end timestamp."
                         )
 
                     timer = Timer(
@@ -671,10 +605,10 @@ def load_accounts_from_records(records: object) -> List[Account]:
                         village=village,
                         category=category,
                     )
+                    if reference_time is not None:
+                        timer.end_at = ends_at
                     timers.append(timer)
                     category_timers.append(timer)
-                    if ends_at is not None and saved_at is not None:
-                        timer_end_times.append((timer, ends_at))
 
                 if helper_name is not None and assistant is not None:
                     assigned_timer = helper_record.get("assigned_timer")
@@ -732,10 +666,8 @@ def load_accounts_from_records(records: object) -> List[Account]:
             study_soup=study_soup,
             pet_potion=pet_potion,
         )
-        if saved_at is not None:
+        if reference_time is not None:
             _simulate_elapsed(account, simulation_seconds)
-            for timer, ends_at in timer_end_times:
-                timer.actual_time_left = max(0, math.ceil(ends_at - now))
         accounts.append(account)
 
     return accounts
@@ -810,13 +742,15 @@ def synchronize_accounts_from_saved_end_times(
                     return 0
                 if timer.actual_time_left <= 0:
                     continue
-                saved_end = timer_record.get("ends_at")
+                saved_end = timer_record.get(
+                    "end_at", timer_record.get("ends_at")
+                )
                 if saved_end is None:
                     return 0
                 saved_end = _validated_end_timestamp(
                     saved_end, timer.name, account.name
                 )
-                drifts.append(now + timer.actual_time_left - saved_end)
+                drifts.append(timer.end_at - saved_end)
 
         helper_records = (
             (
@@ -914,11 +848,10 @@ def synchronize_accounts_from_saved_end_times(
     return elapsed_seconds
 
 
-def _serialize_timer(timer: Timer, saved_at: float) -> dict:
+def _serialize_timer(timer: Timer) -> dict:
     return {
         "name": timer.name,
-        "value": max(0, timer.value),
-        "ends_at": saved_at + max(0, timer.actual_time_left),
+        "end_at": timer.end_at,
     }
 
 
@@ -927,12 +860,10 @@ def _serialize_assistant(
     category_timers: List[Timer],
     saved_at: float,
 ) -> dict:
-    cooldown = max(0, assistant.cooldown)
     record = {
         "active": assistant.active,
         "assigned": assistant.assigned,
-        "cooldown": cooldown,
-        "ends_at": saved_at + cooldown,
+        "ends_at": saved_at + max(0, assistant.cooldown),
         "multiplier": assistant.multiplier,
     }
     if assistant.assigned_timer is not None:
@@ -955,11 +886,9 @@ def _serialize_assistant(
 
 
 def _serialize_timed_boost(boost: TimedBoost, saved_at: float) -> dict:
-    cooldown = max(0, boost.cooldown)
     return {
         "active": boost.active,
-        "cooldown": cooldown,
-        "ends_at": saved_at + cooldown,
+        "ends_at": saved_at + max(0, boost.cooldown),
     }
 
 
@@ -1006,9 +935,7 @@ def save_accounts(
             "saved_at": now,
             "Home Village": {
                 "Building": {
-                    "timers": [
-                        _serialize_timer(timer, now) for timer in home_building
-                    ],
+                    "timers": [_serialize_timer(timer) for timer in home_building],
                     "builder_apprentice": _serialize_assistant(
                         account.builder_apprentice, home_building, now
                     ),
@@ -1020,7 +947,7 @@ def save_accounts(
                     ),
                 },
                 "Lab": {
-                    "timers": [_serialize_timer(timer, now) for timer in home_lab],
+                    "timers": [_serialize_timer(timer) for timer in home_lab],
                     "lab_assistant": _serialize_assistant(
                         account.lab_assistant, home_lab, now
                     ),
@@ -1032,7 +959,7 @@ def save_accounts(
                     ),
                 },
                 "Pet": {
-                    "timers": [_serialize_timer(timer, now) for timer in home_pet],
+                    "timers": [_serialize_timer(timer) for timer in home_pet],
                     "pet_potion": _serialize_timed_boost(
                         account.pet_potion, now
                     ),
@@ -1041,22 +968,18 @@ def save_accounts(
             "Builder Base": {
                 "clock_tower": {
                     "active": account.clock_tower.active,
-                    "cooldown": max(0, account.clock_tower.cooldown),
                     "ends_at": now + max(0, account.clock_tower.cooldown),
-                    "recharge_cooldown": max(
-                        0, account.clock_tower.recharge_cooldown
-                    ),
                     "recharge_ends_at": now
                     + max(0, account.clock_tower.recharge_cooldown),
                     "active_cooldown_minutes": account.clock_tower.active_cooldown_minutes,
                 },
                 "Building": {
                     "timers": [
-                        _serialize_timer(timer, now) for timer in builder_building
+                        _serialize_timer(timer) for timer in builder_building
                     ]
                 },
                 "Lab": {
-                    "timers": [_serialize_timer(timer, now) for timer in builder_lab]
+                    "timers": [_serialize_timer(timer) for timer in builder_lab]
                 },
             },
         }
